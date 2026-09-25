@@ -443,7 +443,7 @@ const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","S
 
 /* ================= state ================= */
 const S = {
-  cfg: clone(DEFAULT_CONFIG), days:{}, weeks:{}, goals:{},
+  cfg: clone(DEFAULT_CONFIG), days:{}, weeks:{}, goals:{}, foodDocs:{},
   date: todayKey(), tab:"today", range:30,
   food:{state:"idle"}, sample:null, review:null, reviewBusy:false,
   confirm:null, loaded:false
@@ -482,7 +482,7 @@ function dbStore(db){
   return {
     start(){
       db.doc("config/main").onSnapshot(s => { S.cfg = mergeCfg(s.exists ? s.data() : null); applyLook(); render(); restartFood(); }, () => {});
-      coll("days","days"); coll("weeks","weeks"); coll("goals","goals");
+      coll("days","days"); coll("weeks","weeks"); coll("goals","goals"); coll("food","foodDocs");
     },
     put(col, id, body){ const b = clone(body); queue(col+"/"+id, () => db.doc(col+"/"+id).set(b)); },
     del(col, id){ queue(col+"/"+id, () => db.doc(col+"/"+id).delete()); }
@@ -491,11 +491,11 @@ function dbStore(db){
 const LS = "daily-compass-v1";
 const localStore = {
   start(){
-    try { const d = JSON.parse(localStorage.getItem(LS) || "{}"); S.days = d.days || {}; S.weeks = d.weeks || {}; S.goals = d.goals || {}; S.cfg = mergeCfg(d.config); S.cfgSaved = d.config || null; } catch(e){}
+    try { const d = JSON.parse(localStorage.getItem(LS) || "{}"); S.days = d.days || {}; S.weeks = d.weeks || {}; S.goals = d.goals || {}; S.foodDocs = d.food || {}; S.cfg = mergeCfg(d.config); S.cfgSaved = d.config || null; } catch(e){}
     $("storeNote").textContent = "Saved in this browser only. Open from claude.ai to sync.";
     S.loaded = true; applyLook(); render();
   },
-  save(){ try { localStorage.setItem(LS, JSON.stringify({days:S.days, weeks:S.weeks, goals:S.goals, config:S.cfgSaved || null})); } catch(e){ toast("This browser blocked saving."); } },
+  save(){ try { localStorage.setItem(LS, JSON.stringify({days:S.days, weeks:S.weeks, goals:S.goals, food:S.foodDocs, config:S.cfgSaved || null})); } catch(e){ toast("This browser blocked saving."); } },
   put(col, id, body){ if (col === "config") S.cfgSaved = body; this.save(); },
   del(){ this.save(); }
 };
@@ -575,8 +575,23 @@ function parseSession(p){
   const sm = c.post_turn_summary || em.post_turn_summary || {};
   return { detail: String(sm.status_detail || sm.recent_action || ""), next: String(sm.needs_action || ""), updated: c.updated_at || null };
 }
+function foodNums(text){
+  const t = String(text || "");
+  const k = t.match(/([\d,]{2,6})\s*kcal/i), p = t.match(/([\d.]{1,5})\s*g\s*protein/i) || t.match(/protein[^\d]{0,20}([\d.]{1,5})\s*g/i);
+  return { kcal: k ? +k[1].replace(/,/g, "") : null, protein: p ? +p[1] : null };
+}
+function syncedFoodHtml(k){
+  const doc = S.foodDocs[k]; if (!doc) return "";
+  const n = (doc.kcal != null || doc.protein != null) ? doc : foodNums(doc.detail);
+  const at = doc.updatedAt ? new Date(doc.updatedAt) : null;
+  return `<div class="live"><div class="label">From your food chat${at ? " · " + esc(at.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})) : ""}</div>
+    ${n.kcal != null || n.protein != null ? `<div class="row"><span class="num" style="font-size:20px;font-weight:700">${n.kcal != null ? Number(n.kcal).toLocaleString() + " kcal" : ""}</span>${n.protein != null ? `<span class="num" style="font-size:20px;font-weight:700">· ${n.protein} g protein</span>` : ""}</div>` : ""}
+    <div>${esc(doc.detail || "")}</div>${doc.next ? `<div class="small muted">Next: ${esc(doc.next)}</div>` : ""}</div>`;
+}
 function foodLiveHtml(){
-  const f = S.food;
+  const f = S.food, synced = syncedFoodHtml(S.date);
+  if (f.state !== "ok" && synced) return synced;
+  if (f.state === "denied" && f.code === "blocked_by_policy") return `<div class="live small muted">Your organization doesn't let this app read your food chat directly, so food results arrive here when they're synced. You can also paste today's report below.</div>`;
   if (f.state === "ok") {
     const up = f.updated ? new Date(f.updated) : null;
     const isToday = up && keyOf(up) === todayKey();
@@ -623,6 +638,7 @@ function itemScore(item, d, k){
     }
     case "cardio": return clamp((+v.kcal || 0) / (S.cfg.cardioTarget || 400), 0, 1);
     case "reading": return v.podcast ? 1 : clamp((+v.pages || 0) / (S.cfg.readingMin || 4), 0, 1);
+    case "food": return (v.done || S.foodDocs[k]) ? 1 : 0;
     default: return v.done ? 1 : 0;
   }
 }
@@ -732,7 +748,8 @@ function mustItem(it, d, k){
   if (it.type === "food") {
     body = `${foodLiveHtml()}
       <div class="row"><a class="btn primary" href="${esc(S.cfg.foodUrl || "#")}" target="_blank" rel="noopener">Open food tracker ↗</a>
-      <button class="btn ${v.done ? "on" : ""}" data-act="toggle" data-id="${it.id}">${v.done ? "✓ Logged today" : "Mark as logged"}</button></div>
+      <button class="btn ${v.done || S.foodDocs[k] ? "on" : ""}" data-act="toggle" data-id="${it.id}">${v.done || S.foodDocs[k] ? "✓ Logged today" : "Mark as logged"}</button></div>
+      <details><summary>Paste food report</summary><form class="stack" style="gap:8px" data-form="food-paste"><textarea id="foodPaste" rows="3" placeholder="Paste the summary from your food chat, for example: 1,070 kcal, 59g protein"></textarea><button class="btn sm primary" type="submit" style="align-self:flex-start">Save report</button></form></details>
       <div class="row small muted"><label class="row">Calories eaten <input type="number" min="0" step="10" data-act="field" data-id="${it.id}" data-f="kcalIn" value="${esc(v.kcalIn ?? "")}"></label>
       <label class="row">Protein g <input type="number" min="0" step="5" data-act="field" data-id="${it.id}" data-f="protein" value="${esc(v.protein ?? "")}"></label></div>`;
   } else if (it.type === "gym") {
@@ -1149,6 +1166,13 @@ document.addEventListener("submit", e => {
     const id = f.dataset.id, inp = $("ms-"+id), text = inp.value.trim(); if (!text) return;
     const g = clone(S.goals[id]); g.milestones = g.milestones || []; g.milestones.push({id:uid(), text, done:false}); logProgress(g);
     inp.value = ""; putGoal(g); setTimeout(() => { const i = $("ms-"+id); if (i) i.focus(); }, 0);
+  } else if (kind === "food-paste") {
+    const text = $("foodPaste").value.trim(); if (!text) return;
+    const n = foodNums(text), doc = {detail:text.slice(0, 600), next:"", kcal:n.kcal, protein:n.protein, updatedAt:new Date().toISOString(), source:"paste"};
+    S.foodDocs[k] = doc; store.put("food", k, doc);
+    const foodIt = S.cfg.must.find(m => m.type === "food");
+    if (foodIt) { const d = getDay(k); const v = d.must[foodIt.id] = d.must[foodIt.id] || {}; if (n.kcal != null) v.kcalIn = n.kcal; if (n.protein != null) v.protein = n.protein; v.done = true; putDay(k, d); } else render();
+    toast("Food report saved");
   } else if (kind === "wk-entry") {
     const id = f.dataset.id, inp = $("wke-"+id), text = inp.value.trim(); if (!text) return;
     const m = mondayOf(k), w = S.weeks[m] ? clone(S.weeks[m]) : {items:{}}; w.items = w.items || {}; const v = w.items[id] = w.items[id] || {};
