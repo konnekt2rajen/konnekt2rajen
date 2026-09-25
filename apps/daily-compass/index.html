@@ -88,6 +88,15 @@ textarea{width:100%;resize:vertical;min-height:80px}
 .seg button.on-bad{background:var(--bad);color:#fff}
 .x{background:none;border:0;color:var(--faint);font-size:18px;line-height:1;padding:3px 7px;border-radius:7px}
 .x:hover{color:var(--bad);background:var(--surface-2)}
+.delbtn{color:var(--bad)}
+.btn.danger{color:#fff;background:var(--bad);border-color:var(--bad)}
+.addbtn{align-self:flex-start;border-style:dashed;color:var(--accent);border-color:var(--accent);background:transparent}
+input.inline-title{border:1px solid transparent;background:transparent;font-weight:700;flex:1;min-width:0;padding:4px 6px;border-radius:8px}
+input.inline-title:hover,input.inline-title:focus{border-color:var(--line);background:var(--surface)}
+.inline-title::placeholder{color:var(--faint);font-weight:600}
+.sublist{list-style:none;margin:0 0 0 34px;padding:0;display:flex;flex-direction:column;gap:4px}
+.sublist li{display:flex;align-items:center;gap:8px;font-size:14px;background:var(--surface-2);border-radius:8px;padding:5px 6px 5px 10px}
+.sublist li span{flex:1;min-width:0;overflow-wrap:anywhere}
 
 /* status chips */
 .pill{font-size:12px;font-weight:700;border-radius:99px;padding:2px 10px;white-space:nowrap}
@@ -362,6 +371,7 @@ const BUILTIN_WORDS = [
   ["Eloquent","Fluent and persuasive in speaking.","Her eloquent summary won the room over."]
 ];
 const DEFAULT_CONFIG = {
+  v: 2,
   appTitle: "Daily Compass",
   theme: "system", accent: "blue", density: "comfortable",
   todayOrder: ["positivity","must","words","should","note"],
@@ -381,7 +391,7 @@ const DEFAULT_CONFIG = {
     {focus:"Shoulders + Abs", rest:false},
     {focus:"Quads + Hamstrings", rest:false},
     {focus:"Recovery & refuel", rest:false},
-    {focus:"Rest day", rest:true}
+    {focus:"Cardio + Core", rest:false}
   ],
   foodUrl: "https://claude.ai/cowork/cse_017rGBZREojpq2AvsmSUBvbk",
   foodSession: "session_017rGBZREojpq2AvsmSUBvbk",
@@ -423,6 +433,12 @@ const dayNo = k => { const [y,m,d] = k.split("-").map(Number); return Math.floor
 const fmt = (k, o) => parse(k).toLocaleDateString(undefined, o);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pct = x => Math.round(x * 100) + "%";
+function delBtn(key, act, id, extra){
+  extra = extra || "";
+  return S.confirm === key
+    ? `<button class="btn sm danger" data-act="${act}" data-id="${esc(id)}" data-confirm="1" ${extra}>Confirm delete</button>`
+    : `<button class="btn sm delbtn" data-act="ask-del" data-key="${esc(key)}" aria-label="Delete">Delete</button>`;
+}
 const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 /* ================= state ================= */
@@ -439,6 +455,8 @@ function mergeCfg(saved){
   const c = Object.assign(clone(DEFAULT_CONFIG), saved || {});
   if (!Array.isArray(c.gym) || c.gym.length !== 7) c.gym = clone(DEFAULT_CONFIG.gym);
   SECTIONS_KEYS.forEach(s => { if (!c.todayOrder.includes(s)) c.todayOrder.push(s); });
+  if (!saved || !saved.v || saved.v < 2) { if (c.gym[6] && /^rest/i.test(c.gym[6].focus || "")) c.gym[6] = {focus:"Cardio + Core", rest:false}; }
+  c.v = 2;
   return c;
 }
 const SECTIONS_KEYS = Object.keys(SECTION_NAMES);
@@ -501,10 +519,10 @@ function saveCfg(){ const body = clone(S.cfg); S.cfgSaved = body; store.put("con
 
 /* ================= live food status (Claude Code Remote → your food chat) ================= */
 let foodUnsub = null, foodFor = null;
-async function restartFood(){
+async function restartFood(force){
   if (!(window.claude && window.claude.use)) return;
   const sid = (S.cfg.foodSession || "").trim();
-  if (sid === foodFor) return;
+  if (sid === foodFor && !force) return;
   foodFor = sid;
   if (foodUnsub) { foodUnsub(); foodUnsub = null; }
   if (!sid) { S.food = {state:"nolink"}; render(); return; }
@@ -520,10 +538,33 @@ async function restartFood(){
       const c = ev.error && ev.error.code;
       const denied = ["needs_reauth","server_not_connected","blocked_by_policy","approval_required","not_in_manifest","not_granted","selection_required"];
       if (denied.includes(c)) S.food = {state:"denied", code:c};
-      else if (S.food.state !== "ok") S.food = {state:"error", code:c};
+      else if (S.food.state !== "ok") S.food = {state:"error", code:c||"unknown"};
     }
     render();
   }, {refetchInterval: 60000});
+}
+async function allowFood(){
+  let perm = null;
+  try { perm = await window.claude.use("permissions"); } catch(e){}
+  if (perm) { try { await perm.request(["mcp:Claude Code Remote"]); } catch(e){} }
+  refreshFood();
+}
+async function refreshFood(){
+  const sid = (S.cfg.foodSession || "").trim(); if (!sid) return;
+  let mcp = null;
+  try { mcp = await window.claude.use("mcp"); } catch(e){}
+  if (!mcp) { S.food = {state:"off"}; render(); return; }
+  S.food = {state:"loading"}; render();
+  try {
+    const r = await mcp.callTool("Claude Code Remote", "get_session", {session_id: sid}, {cache:false});
+    const info = parseSession(r && r.payload);
+    S.food = info ? Object.assign({state:"ok"}, info) : {state:"unreadable"};
+    restartFood(true);
+  } catch(e) {
+    const c = e && e.code;
+    S.food = ["needs_reauth","server_not_connected","server_not_found","blocked_by_policy","approval_required","not_in_manifest","not_granted","selection_required","consent_required"].includes(c) ? {state:"denied", code:c} : {state:"error", code:c||"unknown"};
+  }
+  render();
 }
 function parseSession(p){
   let o = p;
@@ -542,15 +583,30 @@ function foodLiveHtml(){
     const when = up ? (isToday ? "today " + up.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : up.toLocaleDateString(undefined, {day:"numeric", month:"short"})) : "";
     return `<div class="live"><div class="label">Latest from your food tracker${when ? " · " + esc(when) : ""}</div>
       <div>${esc(f.detail || "No summary yet.")}</div>${f.next ? `<div class="small muted">Next: ${esc(f.next)}</div>` : ""}
-      ${isToday ? "" : `<div class="small muted">Nothing logged there today yet.</div>`}</div>`;
+      ${isToday ? "" : `<div class="small muted">Nothing logged there today yet.</div>`}
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-act="food-refresh">Refresh now</button></div></div>`;
+  }
+  if (f.state === "denied" || f.state === "error") {
+    const why = {
+      not_in_manifest: "Food status needs your permission for this app.",
+      not_granted: "Food status needs your permission for this app.",
+      consent_required: "Food status needs your permission for this app.",
+      selection_required: "Claude needs you to pick which connection to use. Tap Allow and choose it.",
+      needs_reauth: "Your Claude connection needs signing in again. Open claude.ai Settings → Connectors, then tap Try again.",
+      server_not_connected: "The Claude Code Remote connection isn't available for your account right now. Tap Try again; if it stays, open the app from claude.ai in your browser.",
+      server_not_found: "The Claude Code Remote connection isn't available for your account right now.",
+      blocked_by_policy: "Your organization's settings block this app from reading your food chat.",
+      approval_required: "Your organization requires approval before this app can read your food chat."
+    }[f.code] || "Couldn't reach the food tracker just now.";
+    return `<div class="live"><div>${esc(why)}</div>
+      <div class="row" style="margin-top:6px"><button class="btn sm primary" data-act="food-allow">Allow food status</button><button class="btn sm" data-act="food-refresh">Try again</button>
+      <span class="small muted">code: ${esc(f.code || "unknown")}</span></div></div>`;
   }
   const msg = {
     loading: "Checking your food tracker…",
     off: "Live food status shows when you open this app from claude.ai.",
     nolink: "Add your food tracker link in Customize to see its latest result here.",
     unreadable: "Connected, but the food tracker's status couldn't be read.",
-    denied: "Live food status is turned off for this app. Allow Claude Code Remote access for this app to see it here.",
-    error: "Couldn't reach the food tracker just now. It will try again in a minute.",
     idle: "Checking your food tracker…"
   }[f.state] || "";
   return `<div class="live small muted">${esc(msg)}</div>`;
@@ -593,6 +649,7 @@ function render(){
   if (!S.loaded) return;
   const fn = {today:renderToday, week:renderWeek, goals:renderGoals, insights:renderInsights, custom:renderCustom}[S.tab] || renderToday;
   $("main").innerHTML = fn();
+  if (S.focus) { const f = $(S.focus); S.focus = null; if (f) { f.focus(); if (f.select) f.select(); } }
 }
 document.addEventListener("focusout", () => setTimeout(() => { if (pendingRender) render(); }, 0));
 
@@ -617,7 +674,7 @@ function quotesFor(k, d){
   const q = quotes(), n = dayNo(k) + (d.quoteShift || 0);
   return QUOTE_CATS.map((c, i) => {
     if (d.fresh && d.fresh[c.id]) return {cat:c.label, text:d.fresh[c.id]};
-    const arr = q[c.id] || []; return arr.length ? {cat:c.label, text: arr[(n + i*3) % arr.length]} : null;
+    const arr = (q[c.id] || []).filter(Boolean); return arr.length ? {cat:c.label, text: arr[(n + i*3) % arr.length]} : null;
   }).filter(Boolean);
 }
 function renderToday(){
@@ -635,7 +692,7 @@ function renderToday(){
         </details></section>`;
     },
     words: () => {
-      const w = words(); if (!w.length) return "";
+      const w = words().filter(x => x && x[0]); if (!w.length) return "";
       const n = dayNo(k), per = clamp(S.cfg.wordsPerDay || 2, 1, 5);
       const picks = Array.from({length: Math.min(per, w.length)}, (_, i) => w[(n*per + i) % w.length]);
       return `<section class="card"><div class="card-head"><h2>Words of the day</h2><span class="small muted">Use them in a call, email or chat</span></div>
@@ -649,13 +706,14 @@ function renderToday(){
       const done = S.cfg.must.filter(it => itemScore(it, d, k) === 1).length;
       const counted = S.cfg.must.filter(it => itemScore(it, d, k) != null).length;
       return `<section class="card"><div class="card-head"><div><h2>Must do</h2><span class="small muted">${done} of ${counted} complete</span></div>
-        <div class="score">${ringSvg(sc)}</div></div>${items || `<p class="empty">No must-do items. Add them in Customize.</p>`}</section>`;
+        <div class="score">${ringSvg(sc)}</div></div>${items || `<p class="empty">No must-do items yet.</p>`}
+        <button class="btn addbtn" data-act="must-add">+ Add must-do</button></section>`;
     },
     should: () => {
       const rep = S.cfg.shouldRepeat.map(r => ({id:"r-"+r.id, text:r.label, repeat:true, done: !!(d.repeatDone || {})[r.id], rid:r.id}));
       const list = [...rep, ...d.should];
       return `<section class="card"><div class="card-head"><h2>Should do</h2><span class="small muted">${list.filter(x=>x.done).length}/${list.length} done</span></div>
-        <form class="row" data-form="should"><input type="text" class="grow" id="shouldText" placeholder="Add something and press Enter" aria-label="Should-do item"><button class="btn primary" type="submit">Add</button></form>
+        <form class="row" data-form="should"><input type="text" class="grow" id="shouldText" placeholder="Add something and press Enter" aria-label="Should-do item"><button class="btn primary" type="submit">+ Add</button></form>
         <ul class="list">${list.length ? list.map(x => `<li class="li ${x.done?"done":""}">
           <input type="checkbox" class="check" data-act="${x.repeat ? "rep-toggle" : "should-toggle"}" data-id="${x.repeat ? x.rid : x.id}" ${x.done?"checked":""} aria-label="Done">
           <span class="t">${esc(x.text)}${x.repeat ? ` <span class="pill plain">daily</span>` : ""}</span>
@@ -701,10 +759,11 @@ function mustItem(it, d, k){
   } else {
     body = `<label class="row"><input type="checkbox" class="check" data-act="toggle-box" data-id="${it.id}" ${v.done?"checked":""}> <span>Mark done</span></label>`;
   }
-  return `<div class="mi ${sc >= 1 ? "done" : ""}"><div class="mi-head"><span class="mi-title">${esc(it.label)}</span>${pill}</div>${body}</div>`;
+  return `<div class="mi ${sc >= 1 ? "done" : ""}"><div class="mi-head"><input type="text" class="inline-title" style="font-size:16px" id="ml-${it.id}" data-act="must-label" data-id="${it.id}" value="${esc(it.label)}" placeholder="Name this must-do" aria-label="Must-do name">${pill}${delBtn("m:"+it.id, "must-del", it.id)}</div>${body}</div>`;
 }
 
 /* ---------- Week ---------- */
+const entriesOf = v => v.entries ? v.entries : (v.note ? [{id:"n0", text:v.note}] : []);
 function renderWeek(){
   const m = mondayOf(S.date), t = todayKey(), days = Array.from({length:7}, (_, i) => addDays(m, i));
   const w = S.weeks[m] || {items:{}};
@@ -724,8 +783,13 @@ function renderWeek(){
       <div class="legend"><span>✓ done</span><span>½ partly</span><span>✕ missed</span><span>· upcoming or rest</span></div>
       <p class="help">Tap any square to open that day.</p></section>
     <section class="card"><div class="card-head"><h2>Weekly goals</h2><span class="pill ${doneW===S.cfg.weekly.length&&doneW?"good":"plain"}">${doneW}/${S.cfg.weekly.length} done</span></div>
-      ${S.cfg.weekly.map(g => { const v = w.items[g.id] || {}; return `<div class="wg"><label class="row"><input type="checkbox" class="check" data-act="wk-toggle" data-id="${g.id}" ${v.done?"checked":""}><span style="font-weight:600">${esc(g.label)}</span></label>
-        <input type="text" data-act="wk-note" data-id="${g.id}" value="${esc(v.note||"")}" placeholder="${esc(g.hint || "Notes")}" aria-label="Notes for ${esc(g.label)}"></div>`; }).join("") || `<p class="empty">Add weekly goals in Customize.</p>`}
+      ${S.cfg.weekly.map(g => { const v = w.items[g.id] || {}, en = entriesOf(v); return `<div class="wg">
+        <div class="row"><input type="checkbox" class="check" data-act="wk-toggle" data-id="${g.id}" ${v.done?"checked":""} aria-label="Done">
+          <input type="text" class="inline-title" id="wkl-${g.id}" data-act="wk-label" data-id="${g.id}" value="${esc(g.label)}" placeholder="Name this weekly goal" aria-label="Weekly goal name">
+          ${delBtn("wk:"+g.id, "wk-del", g.id)}</div>
+        ${en.length ? `<ul class="sublist">${en.map(x => `<li><span>${esc(x.text)}</span><button class="x" data-act="wk-entry-del" data-id="${g.id}" data-e="${x.id}" aria-label="Delete note">×</button></li>`).join("")}</ul>` : ""}
+        <form class="row" style="margin-left:34px" data-form="wk-entry" data-id="${g.id}"><input type="text" class="grow" id="wke-${g.id}" placeholder="${esc(g.hint || "Add a note")}" aria-label="Add a note"><button class="btn sm" type="submit">+ Add</button></form></div>`; }).join("") || `<p class="empty">No weekly goals yet.</p>`}
+      <button class="btn addbtn" data-act="wk-add">+ Add weekly goal</button>
     </section></div>`;
 }
 
@@ -748,8 +812,8 @@ function goalCard(g){
   const p = goalPct(g), t = todayKey(), span = Math.max(1, diffDays(g.start, g.target));
   const el = clamp(diffDays(g.start, t) / span, 0, 1), left = diffDays(t, g.target), f = goalForecast(g), ms = g.milestones || [];
   return `<article class="goal">
-    <div class="row" style="align-items:flex-start"><input type="text" class="goal-title" style="border:0;background:none;padding:0;font-weight:700;font-size:16px" data-act="g-title" data-id="${g.id}" value="${esc(g.title)}" aria-label="Goal title">
-      ${S.confirm === g.id ? `<button class="btn sm" style="color:var(--bad);border-color:var(--bad)" data-act="g-del" data-id="${g.id}">Delete?</button>` : `<button class="x" data-act="g-ask" data-id="${g.id}" aria-label="Delete goal">×</button>`}</div>
+    <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><input type="text" class="inline-title" style="font-size:16px" id="gti-${g.id}" data-act="g-title" data-id="${g.id}" value="${esc(g.title)}" placeholder="Name this goal" aria-label="Goal title">
+      ${delBtn("g:"+g.id, "g-del", g.id)}</div>
     <input type="text" data-act="g-why" data-id="${g.id}" value="${esc(g.why||"")}" placeholder="Why does this matter to you?" aria-label="Why it matters">
     <div class="row small muted"><label class="row">Target <input type="date" data-act="g-target" data-id="${g.id}" value="${esc(g.target)}"></label>
       <span class="num">${left >= 0 ? left + " days left" : -left + " days past target"}</span></div>
@@ -757,17 +821,18 @@ function goalCard(g){
     <span class="small muted">The bar is your progress. The thin line shows how much of the time has passed.</span>
     ${ms.length ? "" : `<input type="range" class="range" min="0" max="100" step="5" value="${p}" data-act="g-progress" data-id="${g.id}" aria-label="Progress">`}
     <ul class="list">${ms.map(x => `<li class="li ${x.done?"done":""}"><input type="checkbox" class="check" data-act="ms-toggle" data-id="${g.id}" data-ms="${x.id}" ${x.done?"checked":""}><span class="t">${esc(x.text)}</span><button class="x" data-act="ms-del" data-id="${g.id}" data-ms="${x.id}" aria-label="Remove step">×</button></li>`).join("")}</ul>
-    <form class="row" data-form="ms" data-id="${g.id}"><input type="text" class="grow" id="ms-${g.id}" placeholder="${ms.length ? "Add a step" : "Break it into steps (progress then counts them)"}" aria-label="New step"><button class="btn sm" type="submit">Add</button></form>
+    <form class="row" data-form="ms" data-id="${g.id}"><input type="text" class="grow" id="ms-${g.id}" placeholder="${ms.length ? "Add another step" : "Add a step (progress counts steps)"}" aria-label="New step"><button class="btn sm" type="submit">+ Add step</button></form>
     <div class="forecast"><span class="pill ${f.cls}">Forecast</span> ${esc(f.txt)}</div></article>`;
 }
 function renderGoals(){
-  return `<div class="stack">${S.cfg.horizons.map(h => {
-    const gs = Object.values(S.goals).filter(g => g.horizon === h.id).sort((a,b) => a.target.localeCompare(b.target));
-    return `<section class="card"><div class="card-head"><h2>${esc(h.label)}</h2><span class="small muted">${gs.length} goal${gs.length===1?"":"s"}</span></div>
-      <form class="row" data-form="goal" data-h="${h.id}"><input type="text" class="grow" id="gt-${h.id}" placeholder="Write a ${esc(h.label.replace(/ goals?$/i,""))} goal" aria-label="New goal">
-        <input type="date" id="gd-${h.id}" value="${addMonths(todayKey(), h.months || 3)}" aria-label="Target date"><button class="btn primary" type="submit">Add goal</button></form>
-      ${gs.length ? `<div class="grid2">${gs.map(goalCard).join("")}</div>` : `<p class="empty">No goals here yet. Write one above; you can edit it any time.</p>`}</section>`;
-  }).join("")}</div>`;
+  return `<div class="stack">${S.cfg.horizons.map((h, i) => {
+    const gs = Object.values(S.goals).filter(g => g.horizon === h.id).sort((a,b) => (a.created||0) - (b.created||0));
+    return `<section class="card"><div class="card-head" style="flex-wrap:nowrap"><input type="text" class="inline-title" style="font-size:17px" id="hzl-${h.id}" data-act="hz-label" data-i="${i}" value="${esc(h.label)}" placeholder="Name this section" aria-label="Section name">
+        <span class="small muted" style="white-space:nowrap">${gs.length} goal${gs.length===1?"":"s"}</span>${delBtn("hz:"+h.id, "hz-del", h.id)}</div>
+      ${gs.length ? `<div class="grid2">${gs.map(goalCard).join("")}</div>` : `<p class="empty">No goals here yet.</p>`}
+      <button class="btn addbtn" data-act="g-add" data-h="${h.id}">+ Add goal</button></section>`;
+  }).join("")}
+  <button class="btn addbtn" data-act="hz-add">+ Add goal section (for example 2-year goals)</button></div>`;
 }
 
 /* ---------- Insights ---------- */
@@ -899,12 +964,12 @@ function renderInsights(){
 /* ---------- Customize ---------- */
 function editList(key, items, extra){
   return `<div class="editlist">${items.map((x, i) => `<div class="editrow">
-    <input type="text" data-act="cfg-label" data-key="${key}" data-i="${i}" value="${esc(x.label)}" aria-label="Name">
+    <input type="text" id="cfgl-${key}-${i}" data-act="cfg-label" data-key="${key}" data-i="${i}" value="${esc(x.label)}" placeholder="Type a name" aria-label="Name">
     ${extra ? extra(x, i) : ""}
     <button class="iconbtn" data-act="cfg-move" data-key="${key}" data-i="${i}" data-n="-1" aria-label="Move up" ${i===0?"disabled":""}>↑</button>
     <button class="iconbtn" data-act="cfg-move" data-key="${key}" data-i="${i}" data-n="1" aria-label="Move down" ${i===items.length-1?"disabled":""}>↓</button>
-    <button class="x" data-act="cfg-del" data-key="${key}" data-i="${i}" aria-label="Remove">×</button></div>`).join("")}
-    <form class="row" data-form="cfg-add" data-key="${key}"><input type="text" class="grow" id="add-${key}" placeholder="Add new…" aria-label="Add new"><button class="btn sm" type="submit">Add</button></form></div>`;
+    ${delBtn("c:"+key+":"+(x.id||i), "cfg-del", x.id||"", `data-key="${key}" data-i="${i}"`)}</div>`).join("")}
+    <button class="btn addbtn" data-act="cfg-add" data-key="${key}">+ Add</button></div>`;
 }
 function renderCustom(){
   const c = S.cfg, q = quotes();
@@ -942,13 +1007,21 @@ function renderCustom(){
     <section class="card"><h2>Long-term goal sections</h2>${editList("horizons", c.horizons, (x, i) => `<input type="number" min="1" max="60" style="width:70px" data-act="hz-months" data-i="${i}" value="${x.months||3}" aria-label="Months"><span class="small muted">months</span>`)}</section>
 
     <section class="card"><div class="card-head"><h2>Quotes</h2>${c.quotes ? `<button class="btn sm" data-act="reset-quotes">Reset to built-in</button>` : ""}</div>
-      <p class="help">One quote per line. A different one shows each day.</p>
-      ${QUOTE_CATS.map(cat => `<label class="stack" style="gap:4px"><span class="label">${cat.label}</span><textarea data-act="quotes" data-c="${cat.id}" rows="4">${esc((q[cat.id]||[]).join("\n"))}</textarea></label>`).join("")}</section>
+      <p class="help">A different quote from each group shows every day. Tap a group to add, edit or delete quotes.</p>
+      ${QUOTE_CATS.map(cat => { const arr = q[cat.id] || []; return `<details ${S.openCat === cat.id ? "open" : ""} data-cat="${cat.id}"><summary>${cat.label} (${arr.length})</summary>
+        <div class="editlist">${arr.map((t, i) => `<div class="editrow"><input type="text" id="q-${cat.id}-${i}" data-act="q-edit" data-c="${cat.id}" data-i="${i}" value="${esc(t)}" placeholder="Type a quote" aria-label="Quote">
+          <button class="btn sm delbtn" data-act="q-del" data-c="${cat.id}" data-i="${i}">Delete</button></div>`).join("")}
+        <button class="btn addbtn" data-act="q-add" data-c="${cat.id}">+ Add quote</button></div></details>`; }).join("")}</section>
 
     <section class="card"><div class="card-head"><h2>English words</h2>${c.words ? `<button class="btn sm" data-act="reset-words">Reset to built-in</button>` : ""}</div>
       <label class="row">Words per day <input type="number" min="1" max="5" data-act="cfg-num" data-f="wordsPerDay" value="${c.wordsPerDay}"></label>
-      <p class="help">One per line: word | meaning | example sentence</p>
-      <textarea data-act="words" rows="10">${esc(words().map(w => w.join(" | ")).join("\n"))}</textarea></section>
+      <details ${S.openCat === "words" ? "open" : ""} data-cat="words"><summary>Edit the word list (${words().length})</summary>
+      <div class="editlist">${words().map((w, i) => `<div class="editrow" style="flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <input type="text" style="flex:1 1 120px" id="w-${i}" data-act="w-edit" data-i="${i}" data-p="0" value="${esc(w[0])}" placeholder="Word" aria-label="Word">
+        <input type="text" style="flex:2 1 200px" data-act="w-edit" data-i="${i}" data-p="1" value="${esc(w[1])}" placeholder="Meaning" aria-label="Meaning">
+        <input type="text" style="flex:3 1 240px" data-act="w-edit" data-i="${i}" data-p="2" value="${esc(w[2])}" placeholder="Example sentence" aria-label="Example">
+        <button class="btn sm delbtn" data-act="w-del" data-i="${i}">Delete</button></div>`).join("")}
+      <button class="btn addbtn" data-act="w-add">+ Add word</button></div></details></section>
     <p class="help">Want a bigger change, like a new section, a new chart or a different design? Ask Claude and it will update this app for you.</p>
   </div>`;
 }
@@ -962,7 +1035,7 @@ document.addEventListener("click", e => {
   const tb = e.target.closest("[data-tab]"); if (tb) { setTab(tb.dataset.tab); return; }
   const el = e.target.closest("[data-act]"); if (!el || el.tagName === "INPUT" && el.type !== "button") return;
   const a = el.dataset.act, id = el.dataset.id, c = S.cfg;
-  if (a !== "g-del" && a !== "g-ask" && S.confirm) S.confirm = null;
+  if (a !== "ask-del" && !el.dataset.confirm && S.confirm) S.confirm = null;
   const step = S.tab === "week" ? 7 : 1;
   switch (a) {
     case "prev": S.date = addDays(S.date, -step); render(); break;
@@ -980,15 +1053,33 @@ document.addEventListener("click", e => {
     case "fresh": freshQuotes(el); break;
     case "range": S.range = +el.dataset.n; render(); break;
     case "review": coachReview(); break;
-    case "g-ask": S.confirm = id; render(); setTimeout(() => { if (S.confirm === id) { S.confirm = null; render(); } }, 4000); break;
+    case "ask-del": { const key = el.dataset.key; S.confirm = key; render(); setTimeout(() => { if (S.confirm === key) { S.confirm = null; render(); } }, 5000); break; }
     case "g-del": S.confirm = null; delGoal(id); break;
+    case "g-add": { const h = c.horizons.find(x => x.id === el.dataset.h) || {months:3}, t = todayKey(), gid = uid();
+      S.focus = "gti-" + gid; putGoal({id:gid, horizon:el.dataset.h, title:"", why:"", start:t, target:addMonths(t, h.months || 3), progress:0, milestones:[], log:[{d:t, p:0}], created:Date.now()}); break; }
+    case "hz-add": { const hid = uid(); c.horizons.push({id:hid, label:"", months:24}); S.focus = "hzl-" + hid; saveCfg(); break; }
+    case "hz-del": S.confirm = null; c.horizons = c.horizons.filter(h => h.id !== id); Object.values(S.goals).filter(g => g.horizon === id).forEach(g => delGoal(g.id)); saveCfg(); break;
+    case "must-add": { const mid = uid(); c.must.push({id:mid, type:"check", label:""}); S.focus = "ml-" + mid; saveCfg(); break; }
+    case "must-del": S.confirm = null; c.must = c.must.filter(m => m.id !== id); saveCfg(); break;
+    case "wk-add": { const wid = uid(); c.weekly.push({id:wid, label:"", hint:"Add a note"}); S.focus = "wkl-" + wid; saveCfg(); break; }
+    case "wk-del": S.confirm = null; c.weekly = c.weekly.filter(g => g.id !== id); saveCfg(); break;
+    case "wk-entry-del": { const m = mondayOf(S.date), w = S.weeks[m] ? clone(S.weeks[m]) : {items:{}}; w.items = w.items || {}; const v = w.items[id] = w.items[id] || {};
+      v.entries = entriesOf(v).filter(x => x.id !== el.dataset.e); delete v.note; putWeek(m, w); break; }
+    case "cfg-add": { const key = el.dataset.key, item = {id:uid(), label:""}; if (key === "must") item.type = "check"; if (key === "horizons") item.months = 3; if (key === "weekly") item.hint = "Add a note";
+      c[key].push(item); S.focus = "cfgl-" + key + "-" + (c[key].length - 1); saveCfg(); break; }
+    case "q-add": { const base = clone(quotes()); (base[el.dataset.c] = base[el.dataset.c] || []).push(""); c.quotes = base; S.openCat = el.dataset.c; S.focus = "q-" + el.dataset.c + "-" + (base[el.dataset.c].length - 1); saveCfg(); break; }
+    case "q-del": { const base = clone(quotes()); base[el.dataset.c].splice(+el.dataset.i, 1); c.quotes = base; S.openCat = el.dataset.c; saveCfg(); break; }
+    case "w-add": { const base = clone(words()); base.push(["","",""]); c.words = base; S.openCat = "words"; S.focus = "w-" + (base.length - 1); saveCfg(); break; }
+    case "w-del": { const base = clone(words()); base.splice(+el.dataset.i, 1); c.words = base; S.openCat = "words"; saveCfg(); break; }
+    case "food-allow": allowFood(); break;
+    case "food-refresh": refreshFood(); break;
     case "ms-del": { const g = clone(S.goals[id]); g.milestones = g.milestones.filter(x => x.id !== el.dataset.ms); logProgress(g); putGoal(g); break; }
     case "accent": c.accent = el.dataset.v; saveCfg(); break;
     case "cfg-set": c[el.dataset.f] = el.dataset.v; saveCfg(); break;
     case "sec-toggle": { const s = el.dataset.s; c.hidden = c.hidden.includes(s) ? c.hidden.filter(x => x !== s) : [...c.hidden, s]; saveCfg(); break; }
     case "sec-move": moveIn(c.todayOrder, +el.dataset.i, +el.dataset.n); saveCfg(); break;
     case "cfg-move": moveIn(c[el.dataset.key], +el.dataset.i, +el.dataset.n); saveCfg(); break;
-    case "cfg-del": c[el.dataset.key].splice(+el.dataset.i, 1); saveCfg(); break;
+    case "cfg-del": S.confirm = null; c[el.dataset.key].splice(+el.dataset.i, 1); saveCfg(); break;
     case "restore-must": { const t = el.dataset.t, def = DEFAULT_CONFIG.must.find(m => m.type === t); if (def) { c.must.push(clone(def)); saveCfg(); } break; }
     case "reset-quotes": c.quotes = null; saveCfg(); break;
     case "reset-words": c.words = null; saveCfg(); break;
@@ -1012,7 +1103,7 @@ document.addEventListener("change", e => {
     }
     case "g-title": case "g-why": case "g-target": case "g-progress": case "ms-toggle": {
       const g = clone(S.goals[id]); if (!g) break;
-      if (a === "g-title") { if (!el.value.trim()) { render(); break; } g.title = el.value.trim(); }
+      if (a === "g-title") g.title = el.value.trim();
       if (a === "g-why") g.why = el.value.trim();
       if (a === "g-target" && el.value) g.target = el.value;
       if (a === "g-progress") { g.progress = +el.value; logProgress(g); }
@@ -1025,10 +1116,16 @@ document.addEventListener("change", e => {
     case "gym-focus": c.gym[+el.dataset.i].focus = el.value.trim(); saveCfg(); break;
     case "gym-rest": c.gym[+el.dataset.i].rest = el.checked; saveCfg(); break;
     case "hz-months": c.horizons[+el.dataset.i].months = clamp(+el.value || 3, 1, 60); saveCfg(); break;
+    case "must-label": { const m = c.must.find(x => x.id === id); if (m && el.value.trim() !== m.label) { m.label = el.value.trim(); saveCfg(); } break; }
+    case "wk-label": { const g = c.weekly.find(x => x.id === id); if (g && el.value.trim() !== g.label) { g.label = el.value.trim(); saveCfg(); } break; }
+    case "hz-label": { const h = c.horizons[+el.dataset.i]; if (h) { h.label = el.value.trim(); saveCfg(); } break; }
+    case "q-edit": { const base = clone(quotes()); base[el.dataset.c][+el.dataset.i] = el.value.trim(); c.quotes = base; S.openCat = el.dataset.c; saveCfg(); break; }
+    case "w-edit": { const base = clone(words()); base[+el.dataset.i][+el.dataset.p] = el.value.trim(); c.words = base; S.openCat = "words"; saveCfg(); break; }
     case "quotes": { const base = clone(quotes()); base[el.dataset.c] = el.value.split("\n").map(s => s.trim()).filter(Boolean); c.quotes = base; saveCfg(); toast("Quotes saved"); break; }
     case "words": { c.words = el.value.split("\n").map(l => l.split("|").map(s => s.trim())).filter(p => p[0]).map(p => [p[0], p[1] || "", p[2] || ""]); saveCfg(); toast("Words saved"); break; }
   }
 });
+document.addEventListener("toggle", e => { const t = e.target; if (t.dataset && t.dataset.cat) S.openCat = t.open ? t.dataset.cat : (S.openCat === t.dataset.cat ? null : S.openCat); }, true);
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.matches("input[type=text][data-act], input[type=number][data-act], input[type=url][data-act]")) e.target.blur();
 });
@@ -1052,6 +1149,10 @@ document.addEventListener("submit", e => {
     const id = f.dataset.id, inp = $("ms-"+id), text = inp.value.trim(); if (!text) return;
     const g = clone(S.goals[id]); g.milestones = g.milestones || []; g.milestones.push({id:uid(), text, done:false}); logProgress(g);
     inp.value = ""; putGoal(g); setTimeout(() => { const i = $("ms-"+id); if (i) i.focus(); }, 0);
+  } else if (kind === "wk-entry") {
+    const id = f.dataset.id, inp = $("wke-"+id), text = inp.value.trim(); if (!text) return;
+    const m = mondayOf(k), w = S.weeks[m] ? clone(S.weeks[m]) : {items:{}}; w.items = w.items || {}; const v = w.items[id] = w.items[id] || {};
+    v.entries = entriesOf(v).concat({id:uid(), text}); delete v.note; inp.value = ""; S.focus = "wke-" + id; putWeek(m, w);
   } else if (kind === "cfg-add") {
     const key = f.dataset.key, inp = $("add-"+key), label = inp.value.trim(); if (!label) return;
     const item = {id:uid(), label};
