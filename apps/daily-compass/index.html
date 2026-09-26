@@ -386,7 +386,7 @@ const BUILTIN_WORDS = [
   ["Eloquent","Fluent and persuasive in speaking.","Her eloquent summary won the room over."]
 ];
 const DEFAULT_CONFIG = {
-  v: 2,
+  v: 3,
   appTitle: "Daily Compass",
   theme: "system", accent: "blue", density: "comfortable",
   todayOrder: ["positivity","must","words","should","note","rating"],
@@ -432,26 +432,67 @@ const ACCENTS = {blue:"#3563E9", teal:"#0E9384", violet:"#7A5AF8", orange:"#DD6B
 const SECTION_NAMES = {positivity:"Positivity", must:"Must do", words:"Words of the day", should:"Should do", note:"Day note", rating:"Day rating"};
 const EX = (n, eq, r, m) => ({id: n.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24), n, eq, r, m, url: ""});
 const DEFAULT_EX = [
-  [EX("Close-grip bench press","Barbell + flat bench","4 × 10/8/8/6","Triceps, inner chest"), EX("EZ-bar skull crusher","EZ bar + flat bench","3 × 10/8/8","Triceps long head"),
-   EX("Rope pushdown","Cable machine + rope","3 × 12/12/10","Triceps"), EX("Barbell curl","Barbell","4 × 10/8/8/6","Biceps"),
-   EX("Hammer curl","Dumbbells","3 × 12/10/10","Brachialis, forearms"), EX("Preacher curl","Preacher curl machine or bench","3 × 12/10/8","Biceps short head")],
-  [EX("Flat bench press","Barbell + flat bench","4 × 8/10/8/6","Mid chest, triceps"), EX("Incline dumbbell press","Dumbbells + incline bench","4 × 10/10/8/8","Upper chest, front delts"),
-   EX("Pec deck fly","Pec deck machine (or cable crossover)","4 × 15/12/12/10","Chest"), EX("Triceps pushdown","Cable machine + bar","4 × 12/10/10/8","Triceps"),
-   EX("Overhead dumbbell extension","Dumbbell","3 × 12/10/8","Triceps long head"), EX("Dips","Dip station or assisted dip machine","3 × to failure","Chest, triceps")],
-  [EX("Lat pulldown","Lat pulldown machine (or pull-up bar)","4 × 12/10/10/8","Lats"), EX("Bent-over barbell row","Barbell","4 × 10/8/8/6","Mid back, lats"),
-   EX("Seated cable row","Seated row machine","4 × 12/10/8/8","Mid back, traps"), EX("Barbell curl","Barbell","4 × 10/8/8/6","Biceps"),
-   EX("Incline dumbbell curl","Dumbbells + incline bench","3 × 12/10/8","Biceps long head")],
-  [EX("Seated shoulder press","Shoulder press machine or dumbbells","4 × 10/8/8/6","All three delts"), EX("Lateral raise","Dumbbells or cable","4 × 15/12/12/10","Side delts"),
-   EX("Reverse pec deck","Pec deck machine","4 × 15/12/12/10","Rear delts"), EX("Hanging leg raise","Pull-up bar or captain's chair","3 × 15/15/12","Lower abs"),
-   EX("Cable crunch","Cable machine + rope","3 × 20/15/15","Upper abs")],
-  [EX("Barbell squat","Squat rack (or leg press machine)","4 × 10/8/8/6","Quads, glutes"), EX("Leg press","Leg press machine","3 × 12/10/10","Quads"),
-   EX("Leg extension","Leg extension machine","4 × 15/12/10/10","Quads"), EX("Romanian deadlift","Barbell or dumbbells","3 × 10/8/8","Hamstrings, glutes"),
-   EX("Lying leg curl","Leg curl machine","3 × 12/10/10","Hamstrings"), EX("Standing calf raise","Calf raise machine","3 × 20/15/15","Calves")],
-  [EX("Foam rolling","Foam roller","10 min","Whole body recovery"), EX("Full-body stretching","Mat","15 min","Flexibility"),
-   EX("Hip and shoulder mobility","Mat or resistance band","10 min","Joints"), EX("Easy walk","Outdoors or treadmill","20–30 min","Light cardio, recovery")],
-  [EX("Incline treadmill walk","Treadmill","20–30 min","Cardio, fat burn"), EX("Bike or elliptical intervals","Stationary bike or elliptical","15 min","Cardio"),
-   EX("Plank","Mat","3 × 45 s","Core"), EX("Russian twist","Mat + weight plate","3 × 20","Obliques"),
-   EX("Dead bug","Mat","3 × 12","Deep core"), EX("Mountain climbers","Mat","3 × 30 s","Core, cardio")]
+  [ /* Sunday: Biceps + Triceps */
+   EX("Chin-up (or assisted chin-up)","Pull-up bar or assisted pull-up machine","3 × 6–10","Biceps, lats (compound)"),
+   EX("Close-grip bench press","Barbell + flat bench","3 × 8–10","Triceps, chest (compound)"),
+   EX("Barbell curl","Barbell or EZ bar","3 × 8–12","Biceps"),
+   EX("EZ-bar skull crusher","EZ bar + flat bench","3 × 10–12","Triceps long head"),
+   EX("Incline dumbbell curl","Dumbbells + incline bench","3 × 10–12","Biceps long head (arm shape)"),
+   EX("Rope pushdown","Cable machine + rope","3 × 12–15","Triceps (definition)"),
+   EX("Hammer curl + pushdown superset","Dumbbells + cable machine","2 rounds × 12 each, no rest","Forearms, arms, extra calorie burn")],
+  [ /* Monday: Chest + Triceps */
+   EX("Barbell bench press","Barbell + flat bench (or Smith machine)","4 × 6–10","Chest, triceps (main strength lift)"),
+   EX("Incline dumbbell press","Dumbbells + incline bench","3 × 8–12","Upper chest (chest shape)"),
+   EX("Chest press machine","Chest press machine","3 × 10–12","Chest (safe to push close to failure)"),
+   EX("Cable crossover fly","Cable crossover machine (or pec deck)","3 × 12–15","Inner chest definition"),
+   EX("Dips","Dip station or assisted dip machine","3 × 8–12","Lower chest, triceps"),
+   EX("Overhead cable triceps extension","Cable machine + rope","3 × 12–15","Triceps long head")],
+  [ /* Tuesday: Back + Biceps */
+   EX("Lat pulldown (or pull-ups)","Lat pulldown machine or pull-up bar","4 × 8–12","Lats (V-taper)"),
+   EX("Bent-over barbell row","Barbell","4 × 6–10","Mid back, lats (compound)"),
+   EX("Seated cable row","Seated row machine","3 × 10–12","Mid back, posture"),
+   EX("Single-arm dumbbell row","Dumbbell + flat bench","3 × 10–12 each side","Lats, back thickness"),
+   EX("Face pull","Cable machine + rope","3 × 15","Rear delts, upper back (posture)"),
+   EX("Barbell or EZ-bar curl","Barbell or EZ bar","3 × 8–12","Biceps"),
+   EX("Preacher curl","Preacher curl machine or bench","3 × 10–12","Biceps peak")],
+  [ /* Wednesday: Shoulders + Abs */
+   EX("Seated dumbbell shoulder press","Dumbbells (or shoulder press machine)","4 × 8–10","All three delts (compound)"),
+   EX("Lateral raise","Dumbbells or cable","4 × 12–15","Side delts (wider shoulders)"),
+   EX("Reverse pec deck","Pec deck machine","3 × 12–15","Rear delts"),
+   EX("Cable upright row","Cable machine + straight bar","3 × 10–12","Side delts, traps"),
+   EX("Hanging leg raise","Pull-up bar or captain's chair","3 × 12–15","Lower abs"),
+   EX("Cable crunch","Cable machine + rope","3 × 15","Upper abs"),
+   EX("Plank","Mat","3 × 45–60 s","Deep core (flatter stomach)")],
+  [ /* Thursday: Quads + Hamstrings */
+   EX("Barbell back squat","Squat rack (or Smith machine / hack squat)","4 × 6–10","Quads, glutes (biggest calorie burner)"),
+   EX("Romanian deadlift","Barbell or dumbbells","3 × 8–10","Hamstrings, glutes"),
+   EX("Leg press","Leg press machine","3 × 10–12","Quads, glutes"),
+   EX("Walking lunges","Dumbbells","3 × 12 steps each leg","Legs, glutes, conditioning"),
+   EX("Leg extension","Leg extension machine","3 × 12–15","Quads (definition)"),
+   EX("Lying leg curl","Leg curl machine","3 × 10–12","Hamstrings"),
+   EX("Standing calf raise","Calf raise machine","4 × 12–15","Calves")],
+  [ /* Friday: Recovery & refuel */
+   EX("Easy walk","Outdoors or treadmill","30–45 min (counts toward cardio)","Fat loss without tiring muscles"),
+   EX("Foam rolling","Foam roller","10 min","Muscle recovery"),
+   EX("Full-body stretching","Mat","15 min","Flexibility, recovery"),
+   EX("Hip and shoulder mobility","Mat or resistance band","10 min","Joint health for heavier lifts")],
+  [ /* Saturday: Cardio + Core */
+   EX("Incline treadmill walk","Treadmill (10–12% incline)","25–30 min","Fat burn, keeps muscle"),
+   EX("HIIT intervals","Stationary bike, rower or elliptical","10 rounds: 30 s hard / 60 s easy","Fat loss, fitness"),
+   EX("Kettlebell swing","Kettlebell","3 × 15","Glutes, core, calorie burn"),
+   EX("Plank","Mat","3 × 45–60 s","Core"),
+   EX("Russian twist","Mat + weight plate","3 × 20","Obliques (waistline)"),
+   EX("Dead bug","Mat","3 × 12","Deep core"),
+   EX("Mountain climbers","Mat","3 × 30 s","Core, conditioning")]
+];
+const GYM_TIPS = [
+  "Arms day: start with chin-ups and close-grip bench, then isolation. Rest 60–75 s. Squeeze at the top of every rep.",
+  "Chest day: add a little weight or one rep on the bench press each week. Rest 90 s on presses, 60 s on the rest. Last set close to failure.",
+  "Back day: pull with your elbows, not your hands, and pause for 1 s at the top. Rest 60–90 s. Face pulls keep your posture straight.",
+  "Shoulders & abs: lateral raises build width. Keep the weight light, control the lowering and rest 60 s. Finish with abs for a tighter midsection.",
+  "Leg day burns the most calories. Squat first while fresh, rest 90–120 s on squats and deadlifts, 60 s on the machines.",
+  "Recovery day: muscles grow when you rest. Walk, stretch, eat enough protein and sleep 7–8 hours.",
+  "Cardio & core: burn fat while keeping your muscle. Keep the intervals hard but short, then do the core work slowly and under control."
 ];
 const exUrl = x => x.url && /^https?:\/\//.test(x.url) ? x.url : "https://www.youtube.com/results?search_query=" + encodeURIComponent((x.n || "") + " exercise proper form");
 const CARDIO_WAYS = ["Steps","Dance","Walk","Cycling","Sport","Other"];
@@ -493,10 +534,11 @@ if (/^#(today|week|goals|insights|custom)$/.test(location.hash)) S.tab = locatio
 function mergeCfg(saved){
   const c = Object.assign(clone(DEFAULT_CONFIG), saved ? clone(saved) : {});
   if (!Array.isArray(c.gym) || c.gym.length !== 7) c.gym = clone(DEFAULT_CONFIG.gym);
-  c.gym.forEach((g, i) => { if (!Array.isArray(g.ex)) g.ex = clone(DEFAULT_EX[i]); });
+  const oldV = saved && saved.v || 0;
+  if (!saved || oldV < 2) { if (c.gym[6] && /^rest/i.test(c.gym[6].focus || "")) c.gym[6] = {focus:"Cardio + Core", rest:false}; }
+  c.gym.forEach((g, i) => { if (!Array.isArray(g.ex) || oldV < 3) g.ex = clone(DEFAULT_EX[i]); if (g.tip == null || oldV < 3) g.tip = GYM_TIPS[i]; });
   SECTIONS_KEYS.forEach(s => { if (!c.todayOrder.includes(s)) c.todayOrder.push(s); });
-  if (!saved || !saved.v || saved.v < 2) { if (c.gym[6] && /^rest/i.test(c.gym[6].focus || "")) c.gym[6] = {focus:"Cardio + Core", rest:false}; }
-  c.v = 2;
+  c.v = 3;
   return c;
 }
 const SECTIONS_KEYS = Object.keys(SECTION_NAMES);
@@ -872,10 +914,11 @@ function mustItem(it, d, k){
     const exs = (plan.ex || []).filter(x => x.n);
     body = `<div class="mi-sub">${esc(WEEKDAYS[parse(k).getDay()])}'s plan: <b>${esc(plan.focus || "Not set")}</b></div>
       ${exs.length ? `<details data-cat="wo" ${S.openCat === "wo" ? "open" : ""}><summary>Show workout · ${exs.length} exercise${exs.length>1?"s":""} with videos</summary>
+        ${plan.tip ? `<p class="help" style="margin:0 0 8px">💡 ${esc(plan.tip)}</p>` : ""}
         <ol class="exlist">${exs.map(x => `<li><div style="min-width:0"><div class="exn">${esc(x.n)}</div>
           <div class="exm">${x.eq ? `<span class="eq">${esc(x.eq)}</span>` : ""}${x.r ? `<span class="num">${esc(x.r)}</span>` : ""}${x.m ? `<span>${esc(x.m)}</span>` : ""}</div></div>
           <a class="btn sm watch" href="${esc(exUrl(x))}" target="_blank" rel="noopener" aria-label="Watch how to do ${esc(x.n)}">▶ Watch</a></li>`).join("")}</ol>
-        <p class="help" style="margin-top:8px">Change exercises, equipment or video links in Customize → Gym plan.</p></details>` : ""}
+        <p class="help" style="margin-top:8px">Every week, add a little weight or one more rep than last time. That steady increase is what builds lean muscle. Change exercises or video links in Customize → Gym plan.</p></details>` : ""}
 `;
   } else if (it.type === "cardio") {
     const t = S.cfg.cardioTarget || 400, kc = +v.kcal || 0, ways = v.ways || [];
@@ -1139,6 +1182,7 @@ function renderCustom(){
       ${c.gym.map((g, i) => `<div class="editrow"><span style="width:92px;font-weight:600">${WEEKDAYS[i]}</span><input type="text" data-act="gym-focus" data-i="${i}" value="${esc(g.focus)}" aria-label="${WEEKDAYS[i]} focus">
         <label class="row small"><input type="checkbox" data-act="gym-rest" data-i="${i}" ${g.rest?"checked":""}> Rest day</label></div>
         <details data-cat="gx${i}" ${S.openCat === "gx"+i ? "open" : ""} style="margin:0 0 8px 8px"><summary>${WEEKDAYS[i]} exercises (${(g.ex||[]).length})</summary>
+          <input type="text" style="width:100%;margin:6px 0" data-act="gym-tip" data-i="${i}" value="${esc(g.tip || "")}" placeholder="Training tip for this day" aria-label="${WEEKDAYS[i]} tip">
           ${(g.ex||[]).map((x, j) => `<div class="exedit">
             <input type="text" id="ex-${i}-${j}" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="n" value="${esc(x.n)}" placeholder="Exercise" aria-label="Exercise">
             <input type="text" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="eq" value="${esc(x.eq)}" placeholder="Machine or equipment" aria-label="Equipment">
@@ -1273,6 +1317,7 @@ document.addEventListener("change", e => {
     case "cfg-label": { const v = el.value.trim(); if (v) { c[el.dataset.key][+el.dataset.i].label = v; saveCfg(); } else render(); break; }
     case "gym-focus": c.gym[+el.dataset.i].focus = el.value.trim(); saveCfg(); break;
     case "gym-rest": c.gym[+el.dataset.i].rest = el.checked; saveCfg(); break;
+    case "gym-tip": c.gym[+el.dataset.i].tip = el.value.trim(); S.openCat = "gx" + el.dataset.i; saveCfg(); break;
     case "ex-edit": { const x = (c.gym[+el.dataset.i].ex || [])[+el.dataset.j]; if (x) { x[el.dataset.f] = el.value.trim(); S.openCat = "gx" + el.dataset.i; saveCfg(); } break; }
     case "hz-months": c.horizons[+el.dataset.i].months = clamp(+el.value || 3, 1, 60); saveCfg(); break;
     case "must-label": { const m = c.must.find(x => x.id === id); if (m && el.value.trim() !== m.label) { m.label = el.value.trim(); saveCfg(); } break; }
