@@ -491,7 +491,7 @@ try { const t = localStorage.getItem("dc-tab"); if (t) S.tab = t; } catch(e){}
 if (/^#(today|week|goals|insights|custom)$/.test(location.hash)) S.tab = location.hash.slice(1);
 
 function mergeCfg(saved){
-  const c = Object.assign(clone(DEFAULT_CONFIG), saved || {});
+  const c = Object.assign(clone(DEFAULT_CONFIG), saved ? clone(saved) : {});
   if (!Array.isArray(c.gym) || c.gym.length !== 7) c.gym = clone(DEFAULT_CONFIG.gym);
   c.gym.forEach((g, i) => { if (!Array.isArray(g.ex)) g.ex = clone(DEFAULT_EX[i]); });
   SECTIONS_KEYS.forEach(s => { if (!c.todayOrder.includes(s)) c.todayOrder.push(s); });
