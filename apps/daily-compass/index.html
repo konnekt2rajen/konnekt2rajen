@@ -386,7 +386,7 @@ const BUILTIN_WORDS = [
   ["Eloquent","Fluent and persuasive in speaking.","Her eloquent summary won the room over."]
 ];
 const DEFAULT_CONFIG = {
-  v: 3,
+  v: 4,
   appTitle: "Daily Compass",
   theme: "system", accent: "blue", density: "comfortable",
   todayOrder: ["positivity","must","words","should","note","rating"],
@@ -430,69 +430,66 @@ const DEFAULT_CONFIG = {
 };
 const ACCENTS = {blue:"#3563E9", teal:"#0E9384", violet:"#7A5AF8", orange:"#DD6B20", rose:"#DB3D6B", green:"#2F9E44"};
 const SECTION_NAMES = {positivity:"Positivity", must:"Must do", words:"Words of the day", should:"Should do", note:"Day note", rating:"Day rating"};
-const EX = (n, eq, r, m) => ({id: n.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24), n, eq, r, m, url: ""});
+const EX = (n, eq, r, m, later) => ({id: n.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24), n, eq, r, m, later: later || "", url: ""});
 const DEFAULT_EX = [
-  [ /* Sunday: Biceps + Triceps */
-   EX("Chin-up (or assisted chin-up)","Pull-up bar or assisted pull-up machine","3 × 6–10","Biceps, lats (compound)"),
-   EX("Close-grip bench press","Barbell + flat bench","3 × 8–10","Triceps, chest (compound)"),
-   EX("Barbell curl","Barbell or EZ bar","3 × 8–12","Biceps"),
-   EX("EZ-bar skull crusher","EZ bar + flat bench","3 × 10–12","Triceps long head"),
-   EX("Incline dumbbell curl","Dumbbells + incline bench","3 × 10–12","Biceps long head (arm shape)"),
-   EX("Rope pushdown","Cable machine + rope","3 × 12–15","Triceps (definition)"),
-   EX("Hammer curl + pushdown superset","Dumbbells + cable machine","2 rounds × 12 each, no rest","Forearms, arms, extra calorie burn")],
+  [ /* Sunday: Biceps + Triceps (beginner, machines first) */
+   EX("Warm-up","Treadmill or bike","5–10 min easy","Warms joints and muscles"),
+   EX("Lat pulldown, underhand grip","Lat pulldown machine","3 × 12","Biceps, back","Assisted chin-up machine"),
+   EX("Biceps curl machine","Biceps curl machine","3 × 12–15","Biceps","Dumbbell curl"),
+   EX("Triceps pushdown","Cable machine + straight bar","3 × 12–15","Triceps","Rope pushdown"),
+   EX("Seated dip machine","Seated dip machine","2 × 12","Triceps, chest","Assisted dips"),
+   EX("Cable biceps curl","Cable machine + straight bar","2 × 12–15","Biceps","Barbell or EZ-bar curl"),
+   EX("Triceps extension machine","Triceps extension machine (or overhead cable rope)","2 × 12–15","Triceps long head","EZ-bar skull crusher")],
   [ /* Monday: Chest + Triceps */
-   EX("Barbell bench press","Barbell + flat bench (or Smith machine)","4 × 6–10","Chest, triceps (main strength lift)"),
-   EX("Incline dumbbell press","Dumbbells + incline bench","3 × 8–12","Upper chest (chest shape)"),
-   EX("Chest press machine","Chest press machine","3 × 10–12","Chest (safe to push close to failure)"),
-   EX("Cable crossover fly","Cable crossover machine (or pec deck)","3 × 12–15","Inner chest definition"),
-   EX("Dips","Dip station or assisted dip machine","3 × 8–12","Lower chest, triceps"),
-   EX("Overhead cable triceps extension","Cable machine + rope","3 × 12–15","Triceps long head")],
+   EX("Warm-up","Treadmill or bike","5–10 min easy","Warms joints and muscles"),
+   EX("Chest press machine","Seated chest press machine","3 × 12","Chest, triceps","Dumbbell bench press"),
+   EX("Incline chest press machine","Incline chest press machine","3 × 12","Upper chest","Incline dumbbell press"),
+   EX("Pec deck fly","Pec deck machine","3 × 12–15","Chest","Cable crossover fly"),
+   EX("Triceps pushdown","Cable machine + straight bar","3 × 12–15","Triceps","Overhead cable extension"),
+   EX("Seated dip machine","Seated dip machine","2 × 12","Triceps, lower chest","Assisted dips")],
   [ /* Tuesday: Back + Biceps */
-   EX("Lat pulldown (or pull-ups)","Lat pulldown machine or pull-up bar","4 × 8–12","Lats (V-taper)"),
-   EX("Bent-over barbell row","Barbell","4 × 6–10","Mid back, lats (compound)"),
-   EX("Seated cable row","Seated row machine","3 × 10–12","Mid back, posture"),
-   EX("Single-arm dumbbell row","Dumbbell + flat bench","3 × 10–12 each side","Lats, back thickness"),
-   EX("Face pull","Cable machine + rope","3 × 15","Rear delts, upper back (posture)"),
-   EX("Barbell or EZ-bar curl","Barbell or EZ bar","3 × 8–12","Biceps"),
-   EX("Preacher curl","Preacher curl machine or bench","3 × 10–12","Biceps peak")],
+   EX("Warm-up","Treadmill or bike","5–10 min easy","Warms joints and muscles"),
+   EX("Lat pulldown, wide grip","Lat pulldown machine","3 × 12","Lats (wider back)","Assisted pull-up machine"),
+   EX("Seated cable row","Seated row machine","3 × 12","Mid back, posture","Single-arm dumbbell row"),
+   EX("Chest-supported row machine","Row machine with chest pad","3 × 12","Upper back","Bent-over barbell row"),
+   EX("Reverse pec deck","Pec deck machine (rear delt setting)","2 × 15","Rear shoulders, posture","Face pull with cable rope"),
+   EX("Biceps curl machine","Biceps curl machine","3 × 12–15","Biceps","EZ-bar curl")],
   [ /* Wednesday: Shoulders + Abs */
-   EX("Seated dumbbell shoulder press","Dumbbells (or shoulder press machine)","4 × 8–10","All three delts (compound)"),
-   EX("Lateral raise","Dumbbells or cable","4 × 12–15","Side delts (wider shoulders)"),
-   EX("Reverse pec deck","Pec deck machine","3 × 12–15","Rear delts"),
-   EX("Cable upright row","Cable machine + straight bar","3 × 10–12","Side delts, traps"),
-   EX("Hanging leg raise","Pull-up bar or captain's chair","3 × 12–15","Lower abs"),
-   EX("Cable crunch","Cable machine + rope","3 × 15","Upper abs"),
-   EX("Plank","Mat","3 × 45–60 s","Deep core (flatter stomach)")],
+   EX("Warm-up","Treadmill or bike","5–10 min easy","Warms joints and muscles"),
+   EX("Shoulder press machine","Seated shoulder press machine","3 × 12","Shoulders","Seated dumbbell press"),
+   EX("Lateral raise machine","Lateral raise machine (or light cable)","3 × 12–15","Side shoulders (wider look)","Dumbbell lateral raise"),
+   EX("Reverse pec deck","Pec deck machine (rear delt setting)","2 × 15","Rear shoulders","Face pull with cable rope"),
+   EX("Ab crunch machine","Ab crunch machine","3 × 15","Upper abs","Cable crunch"),
+   EX("Knee raise","Captain's chair (back pad + arm rests)","3 × 10–12","Lower abs","Hanging leg raise"),
+   EX("Plank on knees","Mat","3 × 20–30 s","Deep core (tummy)","Full plank 45–60 s")],
   [ /* Thursday: Quads + Hamstrings */
-   EX("Barbell back squat","Squat rack (or Smith machine / hack squat)","4 × 6–10","Quads, glutes (biggest calorie burner)"),
-   EX("Romanian deadlift","Barbell or dumbbells","3 × 8–10","Hamstrings, glutes"),
-   EX("Leg press","Leg press machine","3 × 10–12","Quads, glutes"),
-   EX("Walking lunges","Dumbbells","3 × 12 steps each leg","Legs, glutes, conditioning"),
-   EX("Leg extension","Leg extension machine","3 × 12–15","Quads (definition)"),
-   EX("Lying leg curl","Leg curl machine","3 × 10–12","Hamstrings"),
-   EX("Standing calf raise","Calf raise machine","4 × 12–15","Calves")],
+   EX("Warm-up","Treadmill or bike","5–10 min easy","Warms knees and hips"),
+   EX("Leg press","Leg press machine","3 × 12–15","Quads, glutes (burns the most calories)","Goblet squat, then barbell squat"),
+   EX("Leg extension","Leg extension machine","3 × 12–15","Front of thighs","Walking lunges"),
+   EX("Seated leg curl","Seated or lying leg curl machine","3 × 12–15","Back of thighs","Romanian deadlift with dumbbells"),
+   EX("Hip abduction / adduction","Hip abductor and adductor machines","2 × 15 each","Outer and inner thighs, glutes"),
+   EX("Seated calf raise","Seated calf machine (or calves on the leg press)","3 × 15","Calves","Standing calf raise")],
   [ /* Friday: Recovery & refuel */
    EX("Easy walk","Outdoors or treadmill","30–45 min (counts toward cardio)","Fat loss without tiring muscles"),
-   EX("Foam rolling","Foam roller","10 min","Muscle recovery"),
-   EX("Full-body stretching","Mat","15 min","Flexibility, recovery"),
-   EX("Hip and shoulder mobility","Mat or resistance band","10 min","Joint health for heavier lifts")],
+   EX("Foam rolling","Foam roller","10 min","Sore muscles recover faster"),
+   EX("Full-body stretching","Mat","10–15 min","Flexibility"),
+   EX("Hip and shoulder mobility","Mat","10 min","Joint health")],
   [ /* Saturday: Cardio + Core */
-   EX("Incline treadmill walk","Treadmill (10–12% incline)","25–30 min","Fat burn, keeps muscle"),
-   EX("HIIT intervals","Stationary bike, rower or elliptical","10 rounds: 30 s hard / 60 s easy","Fat loss, fitness"),
-   EX("Kettlebell swing","Kettlebell","3 × 15","Glutes, core, calorie burn"),
-   EX("Plank","Mat","3 × 45–60 s","Core"),
-   EX("Russian twist","Mat + weight plate","3 × 20","Obliques (waistline)"),
-   EX("Dead bug","Mat","3 × 12","Deep core"),
-   EX("Mountain climbers","Mat","3 × 30 s","Core, conditioning")]
+   EX("Incline treadmill walk","Treadmill (start at 5–8% incline)","25–30 min","Fat burn, easy on joints","10–12% incline"),
+   EX("Stationary bike or elliptical","Bike or elliptical","15 min steady","Fat burn","Intervals: 30 s fast / 60 s easy"),
+   EX("Ab crunch machine","Ab crunch machine","2 × 15","Upper abs","Cable crunch"),
+   EX("Plank on knees","Mat","3 × 20–30 s","Deep core","Full plank 45–60 s"),
+   EX("Dead bug","Mat (lying on your back)","2 × 10","Deep core, lower back safe","Mountain climbers"),
+   EX("Back extension machine","Back extension machine","2 × 12","Lower back, glutes","Kettlebell swing")]
 ];
 const GYM_TIPS = [
-  "Arms day: start with chin-ups and close-grip bench, then isolation. Rest 60–75 s. Squeeze at the top of every rep.",
-  "Chest day: add a little weight or one rep on the bench press each week. Rest 90 s on presses, 60 s on the rest. Last set close to failure.",
-  "Back day: pull with your elbows, not your hands, and pause for 1 s at the top. Rest 60–90 s. Face pulls keep your posture straight.",
-  "Shoulders & abs: lateral raises build width. Keep the weight light, control the lowering and rest 60 s. Finish with abs for a tighter midsection.",
-  "Leg day burns the most calories. Squat first while fresh, rest 90–120 s on squats and deadlifts, 60 s on the machines.",
-  "Recovery day: muscles grow when you rest. Walk, stretch, eat enough protein and sleep 7–8 hours.",
-  "Cardio & core: burn fat while keeping your muscle. Keep the intervals hard but short, then do the core work slowly and under control."
+  "Arms day. Pick a weight you can lift 15 times but stop at 12, with 2–3 reps left in the tank. Rest 60–90 s. Move slowly: 2 s up, 2 s down.",
+  "Chest day. Set the machine seat so the handles line up with the middle of your chest. Breathe out as you push, in as you return.",
+  "Back day. Sit tall, pull with your elbows and squeeze your shoulder blades together. Don't lean back or swing.",
+  "Shoulders and abs. Keep the shoulder weights light and controlled. Abs work tones the muscle, but the tummy itself shrinks through diet and cardio.",
+  "Leg day burns the most calories. Keep your knees in line with your toes on the leg press and don't lock them at the top.",
+  "Recovery day. Muscles grow while you rest. Walk, stretch, drink water, eat enough protein and sleep 7–8 hours.",
+  "Cardio and core. A long incline walk burns fat without hurting your knees. Keep your breathing steady enough to talk."
 ];
 const exUrl = x => x.url && /^https?:\/\//.test(x.url) ? x.url : "https://www.youtube.com/results?search_query=" + encodeURIComponent((x.n || "") + " exercise proper form");
 const CARDIO_WAYS = ["Steps","Dance","Walk","Cycling","Sport","Other"];
@@ -536,9 +533,9 @@ function mergeCfg(saved){
   if (!Array.isArray(c.gym) || c.gym.length !== 7) c.gym = clone(DEFAULT_CONFIG.gym);
   const oldV = saved && saved.v || 0;
   if (!saved || oldV < 2) { if (c.gym[6] && /^rest/i.test(c.gym[6].focus || "")) c.gym[6] = {focus:"Cardio + Core", rest:false}; }
-  c.gym.forEach((g, i) => { if (!Array.isArray(g.ex) || oldV < 3) g.ex = clone(DEFAULT_EX[i]); if (g.tip == null || oldV < 3) g.tip = GYM_TIPS[i]; });
+  c.gym.forEach((g, i) => { if (!Array.isArray(g.ex) || oldV < 4) g.ex = clone(DEFAULT_EX[i]); if (g.tip == null || oldV < 4) g.tip = GYM_TIPS[i]; });
   SECTIONS_KEYS.forEach(s => { if (!c.todayOrder.includes(s)) c.todayOrder.push(s); });
-  c.v = 3;
+  c.v = 4;
   return c;
 }
 const SECTIONS_KEYS = Object.keys(SECTION_NAMES);
@@ -916,9 +913,9 @@ function mustItem(it, d, k){
       ${exs.length ? `<details data-cat="wo" ${S.openCat === "wo" ? "open" : ""}><summary>Show workout · ${exs.length} exercise${exs.length>1?"s":""} with videos</summary>
         ${plan.tip ? `<p class="help" style="margin:0 0 8px">💡 ${esc(plan.tip)}</p>` : ""}
         <ol class="exlist">${exs.map(x => `<li><div style="min-width:0"><div class="exn">${esc(x.n)}</div>
-          <div class="exm">${x.eq ? `<span class="eq">${esc(x.eq)}</span>` : ""}${x.r ? `<span class="num">${esc(x.r)}</span>` : ""}${x.m ? `<span>${esc(x.m)}</span>` : ""}</div></div>
+          <div class="exm">${x.eq ? `<span class="eq">${esc(x.eq)}</span>` : ""}${x.r ? `<span class="num">${esc(x.r)}</span>` : ""}${x.m ? `<span>${esc(x.m)}</span>` : ""}</div>${x.later ? `<div class="small muted" style="margin-top:2px">Later: ${esc(x.later)}</div>` : ""}</div>
           <a class="btn sm watch" href="${esc(exUrl(x))}" target="_blank" rel="noopener" aria-label="Watch how to do ${esc(x.n)}">▶ Watch</a></li>`).join("")}</ol>
-        <p class="help" style="margin-top:8px">Every week, add a little weight or one more rep than last time. That steady increase is what builds lean muscle. Change exercises or video links in Customize → Gym plan.</p></details>` : ""}
+        <p class="help" style="margin-top:8px">Beginner plan, machines first. When you can do the top of the rep range on every set with good form, add the next weight up. After about 6–8 weeks, start swapping in the "Later" exercises one at a time. Change exercises or video links in Customize → Gym plan.</p></details>` : ""}
 `;
   } else if (it.type === "cardio") {
     const t = S.cfg.cardioTarget || 400, kc = +v.kcal || 0, ways = v.ways || [];
@@ -1188,6 +1185,7 @@ function renderCustom(){
             <input type="text" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="eq" value="${esc(x.eq)}" placeholder="Machine or equipment" aria-label="Equipment">
             <input type="text" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="r" value="${esc(x.r)}" placeholder="Sets × reps" aria-label="Sets and reps">
             <input type="text" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="m" value="${esc(x.m)}" placeholder="Target muscle" aria-label="Target muscle">
+            <input type="text" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="later" value="${esc(x.later||"")}" placeholder="Later / next step (optional)" aria-label="Later step">
             <input type="url" style="flex:2 1 220px" data-act="ex-edit" data-i="${i}" data-j="${j}" data-f="url" value="${esc(x.url)}" placeholder="Video link (optional; blank = YouTube search)" aria-label="Video link">
             <button class="btn sm delbtn" data-act="ex-del" data-i="${i}" data-j="${j}">Delete</button></div>`).join("")}
           <button class="btn addbtn" style="margin-top:8px" data-act="ex-add" data-i="${i}">+ Add exercise</button></details>`).join("")}
