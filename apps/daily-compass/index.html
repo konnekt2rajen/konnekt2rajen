@@ -86,6 +86,12 @@ textarea{width:100%;resize:vertical;min-height:80px}
 .seg button.on-good{background:var(--good);color:#fff}
 .seg button.on-warn{background:var(--warn);color:#fff}
 .seg button.on-bad{background:var(--bad);color:#fff}
+.seg.sm button{padding:4px 9px;font-size:12.5px}
+.li .seg{flex:0 0 auto}
+.grade{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.grade .big{font-family:var(--mono);font-size:40px;font-weight:700;line-height:1}
+.rv h3{margin-top:4px}
+.rv ul{margin:4px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:14.5px}
 .x{background:none;border:0;color:var(--faint);font-size:18px;line-height:1;padding:3px 7px;border-radius:7px}
 .x:hover{color:var(--bad);background:var(--surface-2)}
 .delbtn{color:var(--bad)}
@@ -374,7 +380,7 @@ const DEFAULT_CONFIG = {
   v: 2,
   appTitle: "Daily Compass",
   theme: "system", accent: "blue", density: "comfortable",
-  todayOrder: ["positivity","must","words","should","note"],
+  todayOrder: ["positivity","must","words","should","note","rating"],
   hidden: [],
   must: [
     {id:"food", type:"food", label:"Food log"},
@@ -414,7 +420,7 @@ const DEFAULT_CONFIG = {
   wordsPerDay: 2
 };
 const ACCENTS = {blue:"#3563E9", teal:"#0E9384", violet:"#7A5AF8", orange:"#DD6B20", rose:"#DB3D6B", green:"#2F9E44"};
-const SECTION_NAMES = {positivity:"Positivity", must:"Must do", words:"Words of the day", should:"Should do", note:"Day note"};
+const SECTION_NAMES = {positivity:"Positivity", must:"Must do", words:"Words of the day", should:"Should do", note:"Day note", rating:"Day rating"};
 const CARDIO_WAYS = ["Steps","Dance","Walk","Cycling","Sport","Other"];
 
 /* ================= helpers ================= */
@@ -629,12 +635,21 @@ function foodLiveHtml(){
 
 /* ================= scoring ================= */
 const gymPlanFor = k => S.cfg.gym[parse(k).getDay()] || {focus:"", rest:false};
+const ST = {done:1, partial:0.5, missed:0, skipped:0};
+const stOf = x => x && x.status && x.status in ST ? ST[x.status] : (x && x.done ? 1 : null);
+function segHtml(act, id, cur, extra, small){
+  cur = cur === "skipped" ? "missed" : cur;
+  return `<div class="seg ${small ? "sm" : ""}" role="group" aria-label="Status">
+    <button type="button" data-act="${act}" data-id="${esc(id)}" data-v="done" ${extra||""} class="${cur==="done"?"on-good":""}">Done</button>
+    <button type="button" data-act="${act}" data-id="${esc(id)}" data-v="partial" ${extra||""} class="${cur==="partial"?"on-warn":""}">Partly</button>
+    <button type="button" data-act="${act}" data-id="${esc(id)}" data-v="missed" ${extra||""} class="${cur==="missed"?"on-bad":""}">Not done</button></div>`;
+}
 function itemScore(item, d, k){
   const v = d.must[item.id] || {};
+  if (v.status && v.status in ST) return ST[v.status];
   switch (item.type) {
     case "gym": {
-      if (gymPlanFor(k).rest && !v.status) return null;
-      return v.status === "done" ? 1 : v.status === "partial" ? 0.5 : 0;
+      return gymPlanFor(k).rest ? null : 0;
     }
     case "cardio": return clamp((+v.kcal || 0) / (S.cfg.cardioTarget || 400), 0, 1);
     case "reading": return v.podcast ? 1 : clamp((+v.pages || 0) / (S.cfg.readingMin || 4), 0, 1);
@@ -726,39 +741,102 @@ function renderToday(){
         <button class="btn addbtn" data-act="must-add">+ Add must-do</button></section>`;
     },
     should: () => {
-      const rep = S.cfg.shouldRepeat.map(r => ({id:"r-"+r.id, text:r.label, repeat:true, done: !!(d.repeatDone || {})[r.id], rid:r.id}));
-      const list = [...rep, ...d.should];
+      const rs = d.repeatStatus || {}, rd = d.repeatDone || {};
+      const rep = S.cfg.shouldRepeat.map(r => ({id:"r-"+r.id, text:r.label, repeat:true, rid:r.id, status: rs[r.id] || (rd[r.id] ? "done" : "")}));
+      const list = [...rep, ...d.should.map(x => Object.assign({}, x, {status: x.status || (x.done ? "done" : "")}))];
+      list.forEach(x => x.done = x.status === "done");
       return `<section class="card"><div class="card-head"><h2>Should do</h2><span class="small muted">${list.filter(x=>x.done).length}/${list.length} done</span></div>
         <form class="row" data-form="should"><input type="text" class="grow" id="shouldText" placeholder="Add something and press Enter" aria-label="Should-do item"><button class="btn primary" type="submit">+ Add</button></form>
-        <ul class="list">${list.length ? list.map(x => `<li class="li ${x.done?"done":""}">
-          <input type="checkbox" class="check" data-act="${x.repeat ? "rep-toggle" : "should-toggle"}" data-id="${x.repeat ? x.rid : x.id}" ${x.done?"checked":""} aria-label="Done">
+        <ul class="list">${list.length ? list.map(x => `<li class="li ${x.done?"done":""}" style="flex-wrap:wrap">
           <span class="t">${esc(x.text)}${x.repeat ? ` <span class="pill plain">daily</span>` : ""}</span>
+          ${segHtml(x.repeat ? "rep-status" : "should-status", x.repeat ? x.rid : x.id, x.status, "", true)}
           ${x.repeat ? "" : `<button class="x" data-act="should-del" data-id="${x.id}" aria-label="Remove">×</button>`}</li>`).join("") : `<li class="empty">Nice-to-do tasks for today go here.</li>`}</ul></section>`;
     },
+    rating: () => ratingHtml(k, d),
     note: () => `<section class="card"><div class="card-head"><h2>Day note</h2><span class="small muted">Wins, lessons, how you felt</span></div>
       <textarea id="note-${k}" data-act="note" placeholder="Quick thoughts about today">${esc(d.note)}</textarea></section>`
   };
   const order = S.cfg.todayOrder.filter(s => !S.cfg.hidden.includes(s) && secs[s]);
   return `<div class="stack">${order.map(s => secs[s]()).join("")}</div>`;
 }
+function rateDay(k, d){
+  const well = [], bad = [], improve = [];
+  S.cfg.must.forEach(it => {
+    const s = itemScore(it, d, k), v = d.must[it.id] || {}, st = v.status === "skipped" ? "missed" : v.status;
+    if (s == null) return;
+    if (s >= 1) well.push(it.label);
+    else if (st === "missed") bad.push(it.label + ": not done");
+    else if (s > 0) improve.push(it.label + (it.type === "cardio" && !st ? `: ${Math.max(0, (S.cfg.cardioTarget||400) - (+v.kcal||0))} kcal short` : it.type === "reading" && !st ? `: ${Math.max(0, (S.cfg.readingMin||4) - (+v.pages||0))} pages short` : ": only partly done"));
+    else bad.push(it.label + ": not logged");
+  });
+  const sh = [...S.cfg.shouldRepeat.map(r => ((d.repeatStatus||{})[r.id]) || ((d.repeatDone||{})[r.id] ? "done" : "")), ...d.should.map(x => x.status || (x.done ? "done" : ""))];
+  const shScore = sh.length ? sh.reduce((a, st) => a + (ST[st] || 0), 0) / sh.length : null;
+  if (shScore != null) (shScore >= .8 ? well : shScore >= .4 ? improve : bad).push(`Should-do list: ${Math.round(shScore*100)}% done`);
+  const used = Object.values(d.wordsUsed || {}).filter(Boolean).length;
+  if (used) well.push(`Used ${used} new word${used > 1 ? "s" : ""}`);
+  const must = dayScore(k, d);
+  const extras = (d.note && d.note.trim() ? .5 : 0) + (used ? .5 : 0);
+  const parts = [[must, .75], [shScore, .15], [extras, .10]].filter(p => p[0] != null);
+  const wsum = parts.reduce((a, p) => a + p[1], 0);
+  const score = wsum ? Math.round(parts.reduce((a, p) => a + p[0]*p[1], 0) / wsum * 100) / 10 : null;
+  const grade = score == null ? null : score >= 9 ? ["A+","Outstanding day","good"] : score >= 8 ? ["A","Great day","good"] : score >= 6.5 ? ["B","Good day","good"] : score >= 5 ? ["C","Average day","warn"] : ["D","Tough day","bad"];
+  return {score, grade, well, bad, improve};
+}
+function ratingHtml(k, d){
+  const r = rateDay(k, d), cr = d.review;
+  const list = (title, arr) => arr && arr.length ? `<div class="rv"><h3>${title}</h3><ul>${arr.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+  return `<section class="card"><div class="card-head"><h2>Day rating</h2>
+      ${S.sample ? `<button class="btn primary sm" data-act="rate-day" ${S.rating ? "disabled" : ""}>${S.rating ? "Thinking…" : cr ? "Review again" : "Get Claude's review"}</button>` : ""}</div>
+    ${r.score == null ? `<p class="empty">Log a few activities and your day gets a rating here.</p>` : `
+    <div class="grade"><span class="big" style="color:var(--${r.grade[2]})">${r.grade[0]}</span><div><b>${r.grade[1]}</b><div class="small muted num">${r.score} / 10 from your logged activities</div></div></div>
+    ${cr ? `<div class="forecast"><span class="pill good">Claude</span> <b>${esc(cr.rank)}/10 · ${esc(cr.headline || "")}</b></div>
+      ${list("Went well", cr.went_well)}${list("Went badly", cr.went_badly)}${list("Improve tomorrow", cr.improve)}`
+    : `${list("Went well", r.well)}${list("Went badly", r.bad)}${list("Needs improvement", r.improve)}`}`}
+  </section>`;
+}
+async function reviewDay(){
+  if (!S.sample || S.rating) return;
+  const k = S.date, d = peekDay(k), r = rateDay(k, d);
+  const acts = S.cfg.must.map(it => { const v = d.must[it.id] || {}; return {activity: it.label, type: it.type, status: v.status || "not marked", score: itemScore(it, d, k),
+    details: it.type === "gym" ? gymPlanFor(k).focus : it.type === "cardio" ? `${+v.kcal||0} of ${S.cfg.cardioTarget} kcal ${(v.ways||[]).join(", ")}` : it.type === "reading" ? (v.podcast ? "podcast " : `${+v.pages||0} pages `) + (v.what||"") : it.type === "food" ? ((S.foodDocs[k]||{}).detail || "") : ""}; });
+  const recent = Array.from({length:7}, (_, i) => addDays(k, -7+i)).map(x => ({date:x, score: dayScore(x)})).filter(x => S.days[x.date]);
+  const data = {date: fmt(k,{weekday:"long", day:"numeric", month:"long"}), must_do: acts,
+    should_do: [...S.cfg.shouldRepeat.map(x => ({task:x.label, status:(d.repeatStatus||{})[x.id] || "not marked"})), ...d.should.map(x => ({task:x.text, status:x.status || (x.done?"done":"not marked")}))],
+    words_used: Object.keys(d.wordsUsed||{}).filter(w => d.wordsUsed[w]), note: (d.note||"").slice(0, 800), app_score_out_of_10: r.score, previous_7_days_scores: recent};
+  S.rating = true; render();
+  try {
+    const out = await S.sample.json(`You are my honest personal coach. Rank my day from 1 to 10 based on the activities below (statuses: done, partial, missed, not marked). Consider how important each activity is and compare with my previous days.
+Reply with only JSON: {"rank": number 1-10, "headline": "one short sentence", "went_well": [up to 3 short points], "went_badly": [up to 3 short points], "improve": [up to 3 specific actions for tomorrow]}.
+
+${JSON.stringify(data)}`, {cache:false});
+    if (!out || typeof out.rank !== "number") throw {code:"invalid_json"};
+    const clean = a => Array.isArray(a) ? a.slice(0, 3).map(x => String(x).slice(0, 200)) : [];
+    const dd = getDay(k); dd.review = {rank: Math.max(1, Math.min(10, Math.round(out.rank*10)/10)), headline: String(out.headline || "").slice(0, 200), went_well: clean(out.went_well), went_badly: clean(out.went_badly), improve: clean(out.improve), at: new Date().toISOString()};
+    S.rating = false; putDay(k, dd); return;
+  } catch(e) {
+    const c = e && e.code;
+    if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(c)) { S.sample = null; toast("Claude isn't available for this app, so the app's own rating is shown."); }
+    else if (c === "rate_limited") toast("Claude is busy for your account right now. Try again later.");
+    else if (c !== "cancelled") toast("The review didn't finish. Try again.");
+  }
+  S.rating = false; render();
+}
 function mustItem(it, d, k){
   const v = d.must[it.id] || {}, sc = itemScore(it, d, k);
-  const pill = sc == null ? `<span class="pill plain">Rest day</span>` : sc >= 1 ? `<span class="pill good">Done</span>` : sc > 0 ? `<span class="pill warn">${pct(sc)}</span>` : `<span class="pill plain">To do</span>`;
+  const stv = v.status === "skipped" ? "missed" : v.status;
+  const pill = sc == null ? `<span class="pill plain">Rest day</span>` : stv === "missed" ? `<span class="pill bad">Not done</span>` : sc >= 1 ? `<span class="pill good">Done</span>` : stv === "partial" ? `<span class="pill warn">Partly</span>` : sc > 0 ? `<span class="pill warn">${pct(sc)}</span>` : `<span class="pill plain">To do</span>`;
   let body = "";
   if (it.type === "food") {
     body = `${foodLiveHtml()}
       <div class="row"><a class="btn primary" href="${esc(S.cfg.foodUrl || "#")}" target="_blank" rel="noopener">Open food tracker ↗</a>
-      <button class="btn ${v.done || S.foodDocs[k] ? "on" : ""}" data-act="toggle" data-id="${it.id}">${v.done || S.foodDocs[k] ? "✓ Logged today" : "Mark as logged"}</button></div>
+</div>
       <details><summary>Paste food report</summary><form class="stack" style="gap:8px" data-form="food-paste"><textarea id="foodPaste" rows="3" placeholder="Paste the summary from your food chat, for example: 1,070 kcal, 59g protein"></textarea><button class="btn sm primary" type="submit" style="align-self:flex-start">Save report</button></form></details>
       <div class="row small muted"><label class="row">Calories eaten <input type="number" min="0" step="10" data-act="field" data-id="${it.id}" data-f="kcalIn" value="${esc(v.kcalIn ?? "")}"></label>
       <label class="row">Protein g <input type="number" min="0" step="5" data-act="field" data-id="${it.id}" data-f="protein" value="${esc(v.protein ?? "")}"></label></div>`;
   } else if (it.type === "gym") {
     const plan = gymPlanFor(k);
     body = `<div class="mi-sub">${esc(WEEKDAYS[parse(k).getDay()])}'s plan: <b>${esc(plan.focus || "Not set")}</b></div>
-      <div class="seg" role="group" aria-label="Gym status">
-        <button data-act="gym" data-id="${it.id}" data-v="done" class="${v.status==="done"?"on-good":""}">Done</button>
-        <button data-act="gym" data-id="${it.id}" data-v="partial" class="${v.status==="partial"?"on-warn":""}">Partly</button>
-        <button data-act="gym" data-id="${it.id}" data-v="skipped" class="${v.status==="skipped"?"on-bad":""}">Skipped</button></div>`;
+`;
   } else if (it.type === "cardio") {
     const t = S.cfg.cardioTarget || 400, kc = +v.kcal || 0, ways = v.ways || [];
     body = `<div class="row"><span class="num" style="font-size:22px;font-weight:700">${kc}</span><span class="muted">/ ${t} kcal burned</span></div>
@@ -774,8 +852,9 @@ function mustItem(it, d, k){
         <button class="chipbtn ${v.podcast?"on":""}" data-act="podcast" data-id="${it.id}">🎧 Podcast instead</button></div>
       <input type="text" data-act="field" data-id="${it.id}" data-f="what" value="${esc(v.what || "")}" placeholder="Book or podcast name" aria-label="What did you read or listen to">`;
   } else {
-    body = `<label class="row"><input type="checkbox" class="check" data-act="toggle-box" data-id="${it.id}" ${v.done?"checked":""}> <span>Mark done</span></label>`;
+    body = "";
   }
+  body += `<div class="row"><span class="small muted">How did it go?</span>${segHtml("status", it.id, stv)}</div>`;
   return `<div class="mi ${sc >= 1 ? "done" : ""}"><div class="mi-head"><input type="text" class="inline-title" style="font-size:16px" id="ml-${it.id}" data-act="must-label" data-id="${it.id}" value="${esc(it.label)}" placeholder="Name this must-do" aria-label="Must-do name">${pill}${delBtn("m:"+it.id, "must-del", it.id)}</div>${body}</div>`;
 }
 
@@ -793,7 +872,7 @@ function renderWeek(){
   }).join("")}</tr>`).join("");
   const scores = days.filter(k => k <= t && firstK && k >= firstK).map(k => dayScore(k)).filter(x => x != null);
   const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
-  const doneW = S.cfg.weekly.filter(g => (w.items[g.id]||{}).done).length;
+  const doneW = S.cfg.weekly.filter(g => stOf(w.items[g.id]) === 1).length;
   return `<div class="grid2">
     <section class="card"><div class="card-head"><h2>Must-do this week</h2><span class="pill ${avg==null?"plain":avg>=.8?"good":avg>=.5?"warn":"bad"}">${avg==null?"No data yet":"Average "+pct(avg)}</span></div>
       <div class="wgrid-wrap"><table class="wgrid"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
@@ -801,9 +880,9 @@ function renderWeek(){
       <p class="help">Tap any square to open that day.</p></section>
     <section class="card"><div class="card-head"><h2>Weekly goals</h2><span class="pill ${doneW===S.cfg.weekly.length&&doneW?"good":"plain"}">${doneW}/${S.cfg.weekly.length} done</span></div>
       ${S.cfg.weekly.map(g => { const v = w.items[g.id] || {}, en = entriesOf(v); return `<div class="wg">
-        <div class="row"><input type="checkbox" class="check" data-act="wk-toggle" data-id="${g.id}" ${v.done?"checked":""} aria-label="Done">
-          <input type="text" class="inline-title" id="wkl-${g.id}" data-act="wk-label" data-id="${g.id}" value="${esc(g.label)}" placeholder="Name this weekly goal" aria-label="Weekly goal name">
+        <div class="row"><input type="text" class="inline-title" id="wkl-${g.id}" data-act="wk-label" data-id="${g.id}" value="${esc(g.label)}" placeholder="Name this weekly goal" aria-label="Weekly goal name">
           ${delBtn("wk:"+g.id, "wk-del", g.id)}</div>
+        <div style="margin-left:6px">${segHtml("wk-status", g.id, v.status || (v.done ? "done" : ""), "", true)}</div>
         ${en.length ? `<ul class="sublist">${en.map(x => `<li><span>${esc(x.text)}</span><button class="x" data-act="wk-entry-del" data-id="${g.id}" data-e="${x.id}" aria-label="Delete note">×</button></li>`).join("")}</ul>` : ""}
         <form class="row" style="margin-left:34px" data-form="wk-entry" data-id="${g.id}"><input type="text" class="grow" id="wke-${g.id}" placeholder="${esc(g.hint || "Add a note")}" aria-label="Add a note"><button class="btn sm" type="submit">+ Add</button></form></div>`; }).join("") || `<p class="empty">No weekly goals yet.</p>`}
       <button class="btn addbtn" data-act="wk-add">+ Add weekly goal</button>
@@ -861,9 +940,11 @@ function analyse(N){
   const scores = range.map(k => ({k, s: dayScore(k)}));
   const valid = scores.filter(x => x.s != null);
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  const counts = it => { const c = {done:0, partial:0, missed:0, none:0}; range.forEach(k => { const v = peekDay(k).must[it.id] || {}, s = itemScore(it, peekDay(k), k); if (s == null) return;
+    const st = v.status === "skipped" ? "missed" : v.status; if (st in c) c[st]++; else if (s >= 1) c.done++; else if (s > 0) c.partial++; else c.none++; }); return c; };
   const items = S.cfg.must.map(it => {
     const vals = range.map(k => itemScore(it, peekDay(k), k)).filter(x => x != null);
-    return {it, rate: avg(vals), n: vals.length, full: vals.filter(x => x >= 1).length};
+    return {it, rate: avg(vals), n: vals.length, full: vals.filter(x => x >= 1).length, c: counts(it)};
   });
   const cardioIt = S.cfg.must.find(i => i.type === "cardio"), readIt = S.cfg.must.find(i => i.type === "reading"), gymIt = S.cfg.must.find(i => i.type === "gym"), foodIt = S.cfg.must.find(i => i.type === "food");
   const kcals = cardioIt ? range.map(k => +((peekDay(k).must[cardioIt.id]||{}).kcal) || 0) : [];
@@ -876,7 +957,7 @@ function analyse(N){
   const last7 = avg(valid.slice(-7).map(x => x.s)), prev7 = avg(valid.slice(-14, -7).map(x => x.s));
   let streak = 0; for (let i = scores.length - 1; i >= 0; i--) { const s = scores[i].s; if (s != null && s >= 1) streak++; else if (i === scores.length - 1 && scores[i].k === t) continue; else break; }
   const weeksK = Array.from({length: Math.max(1, Math.ceil(N/7))}, (_, i) => addDays(mondayOf(t), -7*i)).filter(m => S.weeks[m]);
-  const wkRate = avg(weeksK.map(m => S.cfg.weekly.length ? S.cfg.weekly.filter(g => ((S.weeks[m].items||{})[g.id]||{}).done).length / S.cfg.weekly.length : 0));
+  const wkRate = avg(weeksK.map(m => S.cfg.weekly.length ? S.cfg.weekly.reduce((a, g) => a + (stOf((S.weeks[m].items||{})[g.id]) || 0), 0) / S.cfg.weekly.length : 0));
   return {range, scores, valid, avgScore: avg(valid.map(x=>x.s)), items, kcals, pages, weekday, gymFocus, last7, prev7, streak, wkRate, cardioIt, readIt, gymIt, foodIt,
     avgKcal: avg(kcals), avgPages: avg(pages)};
 }
@@ -907,6 +988,10 @@ function findings(A){
     if (ae != null && ak != null && Math.abs(ae - ak) >= 100) out.push({c:"warn", t:`Cardio is ${ae < ak ? "lower" : "higher"} at weekends: ${Math.round(ae)} kcal vs ${Math.round(ak)} kcal on weekdays.`});
     if (A.avgKcal != null) out.push({c: A.avgKcal >= T ? "good" : A.avgKcal >= T*0.7 ? "warn" : "bad", t:`You burn ${Math.round(A.avgKcal)} kcal a day on average in cardio, against a target of ${T}.`});
   }
+  const partly = A.items.filter(x => x.c.partial >= 3).sort((a,b) => b.c.partial - a.c.partial)[0];
+  if (partly) out.push({c:"warn", t:`${partly.it.label} is often only partly done (${partly.c.partial} days). Plan a smaller, fixed version you can always finish.`});
+  const unl = A.items.filter(x => x.c.none >= 3).sort((a,b) => b.c.none - a.c.none)[0];
+  if (unl) out.push({c:"plain", t:`${unl.it.label} wasn't logged on ${unl.c.none} days. Mark Done, Partly or Not done every day so the patterns stay accurate.`});
   const missed = A.gymFocus.filter(x => x.planned >= 2 && x.done / x.planned < 0.5).sort((a,b) => a.done/a.planned - b.done/b.planned)[0];
   if (missed) out.push({c:"bad", t:`${missed.focus} (${WEEKDAYS[missed.wd]}) gets skipped most: done ${missed.done} of ${missed.planned} times.`});
   if (A.streak >= 3) out.push({c:"good", t:`${A.streak} days in a row with every must-do complete.`});
@@ -969,7 +1054,8 @@ function renderInsights(){
     <section class="card"><div class="card-head"><h2>Daily must-do score</h2></div>${trendSvg(A)}</section>
     <div class="grid2">
       <section class="card"><div class="card-head"><h2>Each must-do</h2><span class="small muted">average completion</span></div>
-        ${A.items.map(x => `<div class="rate"><span>${esc(x.it.label)}</span><div class="bar ${x.rate>=.8?"good":""}"><i style="width:${x.rate==null?0:x.rate*100}%"></i></div><b class="num">${x.rate==null?"–":pct(x.rate)}</b></div>`).join("")}</section>
+        ${A.items.map(x => `<div class="rate"><span>${esc(x.it.label)}</span><div class="bar ${x.rate>=.8?"good":""}"><i style="width:${x.rate==null?0:x.rate*100}%"></i></div><b class="num">${x.rate==null?"–":pct(x.rate)}</b></div>
+          <div class="small muted num" style="margin:-6px 0 4px">Done ${x.c.done} · Partly ${x.c.partial} · Not done ${x.c.missed} · Not logged ${x.c.none}</div>`).join("")}</section>
       <section class="card"><div class="card-head"><h2>By weekday</h2><span class="small muted">average score %</span></div>${weekdaySvg(A)}</section>
     </div>
     ${S.sample ? `<section class="card"><div class="card-head"><h2>Coach review</h2><button class="btn primary" data-act="review" ${S.reviewBusy?"disabled":""}>${S.reviewBusy ? "Thinking…" : S.review ? "Review again" : "Ask Claude to review my progress"}</button></div>
@@ -1060,7 +1146,11 @@ document.addEventListener("click", e => {
     case "today": S.date = todayKey(); render(); break;
     case "open-day": S.date = el.dataset.k; setTab("today"); break;
     case "toggle": mutMust(id, v => v.done = !v.done); break;
-    case "gym": mutMust(id, v => v.status = v.status === el.dataset.v ? "" : el.dataset.v); break;
+    case "gym": case "status": mutMust(id, v => { const cur = v.status === "skipped" ? "missed" : v.status; v.status = cur === el.dataset.v ? "" : el.dataset.v; }); break;
+    case "should-status": { const d = getDay(S.date), x = d.should.find(s => s.id === id); if (x) { const cur = x.status || (x.done ? "done" : ""); x.status = cur === el.dataset.v ? "" : el.dataset.v; x.done = x.status === "done"; } putDay(S.date, d); break; }
+    case "rep-status": { const d = getDay(S.date); d.repeatStatus = d.repeatStatus || {}; const cur = d.repeatStatus[id] || ((d.repeatDone||{})[id] ? "done" : ""); d.repeatStatus[id] = cur === el.dataset.v ? "" : el.dataset.v; if (d.repeatDone) delete d.repeatDone[id]; putDay(S.date, d); break; }
+    case "wk-status": { const m = mondayOf(S.date), w = S.weeks[m] ? clone(S.weeks[m]) : {items:{}}; w.items = w.items || {}; const v = w.items[id] = w.items[id] || {}; const cur = v.status || (v.done ? "done" : ""); v.status = cur === el.dataset.v ? "" : el.dataset.v; v.done = v.status === "done"; putWeek(m, w); break; }
+    case "rate-day": reviewDay(); break;
     case "kcal-add": mutMust(id, v => v.kcal = (+v.kcal || 0) + +el.dataset.n); break;
     case "way": mutMust(id, v => { v.ways = v.ways || []; const w = el.dataset.w; v.ways = v.ways.includes(w) ? v.ways.filter(x => x !== w) : [...v.ways, w]; }); break;
     case "pages": mutMust(id, v => v.pages = Math.max(0, (+v.pages || 0) + +el.dataset.n)); break;
@@ -1154,6 +1244,9 @@ function logProgress(g){
 
 document.addEventListener("submit", e => {
   e.preventDefault();
+  const ae = document.activeElement, fid = ae && ae.id;
+  if (ae && ae.blur) ae.blur();
+  pendingRender = false; S.focus = fid || null;
   const f = e.target, kind = f.dataset.form, k = S.date;
   if (kind === "should") {
     const inp = $("shouldText"), text = inp.value.trim(); if (!text) return;
@@ -1213,7 +1306,7 @@ async function coachReview(){
   const data = {
     days_tracked: A.valid.length, range_days: S.range, avg_must_do_score: A.avgScore,
     last7_avg: A.last7, previous7_avg: A.prev7, all_must_do_streak: A.streak,
-    per_item: A.items.map(x => ({item:x.it.label, completion:x.rate, days:x.n})),
+    per_item: A.items.map(x => ({item:x.it.label, completion:x.rate, days:x.n, done:x.c.done, partly:x.c.partial, not_done:x.c.missed, not_logged:x.c.none})),
     by_weekday: Object.fromEntries(A.weekday.map((v, i) => [WEEKDAYS[i], v])),
     gym_by_focus: A.gymFocus.map(g => ({day:WEEKDAYS[g.wd], focus:g.focus, done:g.done, planned:g.planned})),
     cardio_avg_kcal: A.avgKcal, cardio_target: S.cfg.cardioTarget, pages_total: A.pages.reduce((a,b)=>a+b,0), reading_goal_pages_per_day: S.cfg.readingMin,
